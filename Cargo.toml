@@ -1,0 +1,23 @@
+[package]
+name = "WordCloudRust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "wordcloud"
+path = "src/main.rs"
+
+[dependencies]
+trie-rs = "0.1.1"
+rayon = "1.6.1"
+svg = "0.13.0"
+rusttype = "0.9.3"
+image = "0.24.5"
+edge-detection = "0.2.6"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+quadtree_rs = "0.1.2"
+num-traits = "0.2.15"
+swash = "0.1.6"

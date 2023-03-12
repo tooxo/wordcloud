@@ -1,12 +1,12 @@
 #![feature(iter_intersperse)]
 #![feature(box_into_inner)]
 
-pub mod filtering;
-pub mod io;
-pub mod rank;
 pub mod cloud;
 mod common;
+pub mod filtering;
 mod image;
+pub mod io;
+pub mod rank;
 mod types;
 
 pub fn add(left: usize, right: usize) -> usize {

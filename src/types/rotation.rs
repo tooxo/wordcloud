@@ -18,7 +18,7 @@ impl Rotation {
                 y: point.x,
             },
             Rotation::OneEighty => unimplemented!("one eigthy"),
-            Rotation::TwoSeventy => unimplemented!("twoseventy")
+            Rotation::TwoSeventy => unimplemented!("twoseventy"),
         }
     }
 

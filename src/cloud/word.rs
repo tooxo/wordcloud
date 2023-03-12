@@ -1,15 +1,15 @@
-use std::slice::Iter;
 use rusttype::{Font, OutlineBuilder, Scale};
+use std::slice::Iter;
 use svg::node::element::Script;
-use swash::FontRef;
-use swash::scale::{ScaleContext, Scaler, ScalerBuilder};
 use swash::scale::outline::Outline;
-use swash::shape::Direction::LeftToRight;
+use swash::scale::{ScaleContext, Scaler, ScalerBuilder};
 use swash::shape::partition::shape;
+use swash::shape::Direction::LeftToRight;
 use swash::shape::ShapeContext;
 use swash::text::Script::Latin;
-use swash::zeno::{bounds, Command};
 use swash::zeno::PathData;
+use swash::zeno::{bounds, Command};
+use swash::FontRef;
 
 use crate::cloud::letter::Letter;
 use crate::common::path_collision::collide_line_line;
@@ -28,48 +28,66 @@ pub(crate) struct Word {
     pub(crate) rotation: Rotation,
 }
 
-
 impl<'font> Word {
-    pub(crate) fn build(text: &str, font: &'font Font<'font>, scale: Scale, start: Point<f32>, rotation: Rotation) -> Word {
+    pub(crate) fn build(
+        text: &str,
+        font: &'font Font<'font>,
+        scale: Scale,
+        start: Point<f32>,
+        rotation: Rotation,
+    ) -> Word {
         let gl = font.layout(text, scale, rusttype::Point::default());
         let glyphs = gl
             .into_iter()
             .enumerate()
-            .map(
-                |(i, x)| {
-                    let offset = Point::from(&x.position());
-                    let bbox = x.pixel_bounding_box().unwrap();
-                    let mut letter = Letter::new(
-                        text.chars().collect::<Vec<char>>()[i],
-                        Rect {
-                            min: Point {
-                                x: bbox.min.x as f32,
-                                y: bbox.min.y as f32,
-                            },
-                            max: Point {
-                                x: bbox.max.x as f32,
-                                y: bbox.max.y as f32,
-                            },
+            .map(|(i, x)| {
+                let offset = Point::from(&x.position());
+                let bbox = x.pixel_bounding_box().unwrap();
+                let mut letter = Letter::new(
+                    text.chars().collect::<Vec<char>>()[i],
+                    Rect {
+                        min: Point {
+                            x: bbox.min.x as f32,
+                            y: bbox.min.y as f32,
                         },
-                        offset,
-                        rotation,
-                    );
-                    x.unpositioned().build_outline(&mut letter);
-                    letter.simplify();
-                    letter
-                }
-            ).collect::<Vec<Letter>>();
+                        max: Point {
+                            x: bbox.max.x as f32,
+                            y: bbox.max.y as f32,
+                        },
+                    },
+                    offset,
+                    rotation,
+                );
+                x.unpositioned().build_outline(&mut letter);
+                letter.simplify();
+                letter
+            })
+            .collect::<Vec<Letter>>();
 
-        let mut w = Word { text: String::from(text), glyphs, offset: start, bounding_box: Rect::default(), scale, rotation };
+        let mut w = Word {
+            text: String::from(text),
+            glyphs,
+            offset: start,
+            bounding_box: Rect::default(),
+            scale,
+            rotation,
+        };
         w.recalculate_bounding_box();
 
         w
     }
 
-    pub(crate) fn build_swash2(text: &str, font: FontRef, scale: Scale, start: Point<f32>, rotation: Rotation) -> Word {
+    pub(crate) fn build_swash2(
+        text: &str,
+        font: FontRef,
+        scale: Scale,
+        start: Point<f32>,
+        rotation: Rotation,
+    ) -> Word {
         let mut context = ShapeContext::new();
         let mut scale_context = ScaleContext::new();
-        let mut shaper = context.builder(font)
+        let mut shaper = context
+            .builder(font)
             .script(Latin)
             .size(scale.x)
             .direction(LeftToRight)
@@ -77,65 +95,74 @@ impl<'font> Word {
             .insert_dotted_circles(true)
             .build();
 
-        let mut scaler = scale_context.builder(font)
-            .size(scale.x)
-            .build();
+        let mut scaler = scale_context.builder(font).size(scale.x).build();
 
         shaper.add_str(text);
 
         let mut letters = Vec::new();
         let chars = text.chars().collect::<Vec<char>>();
         let mut advance = 0.0;
-        shaper.shape_with(
-            |c| {
-                letters.append(&mut c.glyphs
+        shaper.shape_with(|c| {
+            letters.append(
+                &mut c
+                    .glyphs
                     .iter()
                     .enumerate()
-                    .map(
-                        |(index, glyph)| {
-                            let mut outline: Outline = Outline::new();
-                            scaler.scale_outline_into(glyph.id, &mut outline);
+                    .map(|(index, glyph)| {
+                        let mut outline: Outline = Outline::new();
+                        scaler.scale_outline_into(glyph.id, &mut outline);
 
-                            let bounds = outline.bounds();
-                            let bbox = Rect {
-                                min: Point {
-                                    x: bounds.min.x + advance,
-                                    y: bounds.min.y,
-                                },
-                                max: Point {
-                                    x: bounds.max.x + advance,
-                                    y: bounds.max.y,
-                                },
-                            };
+                        let bounds = outline.bounds();
+                        let bbox = Rect {
+                            min: Point {
+                                x: bounds.min.x + advance,
+                                y: bounds.min.y,
+                            },
+                            max: Point {
+                                x: bounds.max.x + advance,
+                                y: bounds.max.y,
+                            },
+                        };
 
-                            let mut letter = Letter::new(
-                                chars[index],
-                                bbox,
-                                Point { x: glyph.x + advance, y: glyph.y },
-                                rotation,
-                            );
+                        let mut letter = Letter::new(
+                            chars[index],
+                            bbox,
+                            Point {
+                                x: glyph.x + advance,
+                                y: glyph.y,
+                            },
+                            rotation,
+                        );
 
-                            let commands = outline.path();
-                            for command in commands.commands() {
-                                let cmd: Command = command;
-                                match cmd {
-                                    Command::MoveTo(p) => letter.move_to(p.x, p.y),
-                                    Command::LineTo(p) => letter.line_to(p.x, p.y),
-                                    Command::CurveTo(x1, x2, x) => letter.curve_to(x1.x, x1.y, x2.x, x2.y, x.x, x.y),
-                                    Command::QuadTo(x1, x) => letter.quad_to(x1.x, x1.y, x.x, x.y),
-                                    Command::Close => letter.close(),
+                        let commands = outline.path();
+                        for command in commands.commands() {
+                            let cmd: Command = command;
+                            match cmd {
+                                Command::MoveTo(p) => letter.move_to(p.x, p.y),
+                                Command::LineTo(p) => letter.line_to(p.x, p.y),
+                                Command::CurveTo(x1, x2, x) => {
+                                    letter.curve_to(x1.x, x1.y, x2.x, x2.y, x.x, x.y)
                                 }
+                                Command::QuadTo(x1, x) => letter.quad_to(x1.x, x1.y, x.x, x.y),
+                                Command::Close => letter.close(),
                             }
-                            advance += glyph.advance;
-
-                            letter
                         }
-                    ).collect::<Vec<Letter>>()
-                );
-            }
-        );
+                        advance += glyph.advance;
 
-        let mut w = Word { text: String::from(text), glyphs: letters, offset: start, bounding_box: Rect::default(), scale, rotation };
+                        letter
+                    })
+                    .collect::<Vec<Letter>>(),
+            );
+        });
+
+        let mut w = Word {
+            text: String::from(text),
+            glyphs: letters,
+            offset: start,
+            bounding_box: Rect::default(),
+            scale,
+            rotation,
+        };
 
         let mut max_y = 0.0;
         let mut min_y = f32::MAX;
@@ -154,19 +181,18 @@ impl<'font> Word {
             let height_pt = Point { x: 0.0, y: max_y };
             for command in &mut glyph.state {
                 *command = match &command {
-                    SVGPathCommand::Move(p) => SVGPathCommand::Move(
-                        Move { position: height_pt.sub_ly(&p.position) }
-                    ),
-                    SVGPathCommand::Line(p) => SVGPathCommand::Line(
-                        Line { start: height_pt.sub_ly(&p.start), end: height_pt.sub_ly(&p.end) }
-                    ),
-                    SVGPathCommand::QuadCurve(q) => SVGPathCommand::QuadCurve(
-                        QuadCurve {
-                            p_o: height_pt.sub_ly(&q.p_o),
-                            t: height_pt.sub_ly(&q.t),
-                            t1: height_pt.sub_ly(&q.t1),
-                        }
-                    ),
+                    SVGPathCommand::Move(p) => SVGPathCommand::Move(Move {
+                        position: height_pt.sub_ly(&p.position),
+                    }),
+                    SVGPathCommand::Line(p) => SVGPathCommand::Line(Line {
+                        start: height_pt.sub_ly(&p.start),
+                        end: height_pt.sub_ly(&p.end),
+                    }),
+                    SVGPathCommand::QuadCurve(q) => SVGPathCommand::QuadCurve(QuadCurve {
+                        p_o: height_pt.sub_ly(&q.p_o),
+                        t: height_pt.sub_ly(&q.t),
+                        t1: height_pt.sub_ly(&q.t1),
+                    }),
                     SVGPathCommand::Curve(_) => unimplemented!(),
                     SVGPathCommand::End(_) => SVGPathCommand::End(End {}),
                 }
@@ -222,23 +248,28 @@ impl<'font> Word {
     }
 
     pub(crate) fn move_word(&mut self, new_position: &Point<f32>) {
-        self.offset = Point { x: new_position.x, y: new_position.y };
+        self.offset = Point {
+            x: new_position.x,
+            y: new_position.y,
+        };
         self.recalculate_bounding_box();
     }
 
-    fn collidables(&self) -> impl Iterator<Item=Line<f32>> + '_ {
+    fn collidables(&self) -> impl Iterator<Item = Line<f32>> + '_ {
         self.glyphs
             .iter()
-            .flat_map(
-                |x| x.absolute_collidables(&self.rotation, self.offset)
-            )
+            .flat_map(|x| x.absolute_collidables(&self.rotation, self.offset))
     }
 
     pub(crate) fn word_intersect_(&self, other: &Word) -> Option<Point<f32>> {
-        if self.bounding_box.max.x < other.bounding_box.min.x || self.bounding_box.max.y < other.bounding_box.min.y {
+        if self.bounding_box.max.x < other.bounding_box.min.x
+            || self.bounding_box.max.y < other.bounding_box.min.y
+        {
             return None;
         }
-        if self.bounding_box.min.x > other.bounding_box.max.x || self.bounding_box.min.y > other.bounding_box.max.y {
+        if self.bounding_box.min.x > other.bounding_box.max.x
+            || self.bounding_box.min.y > other.bounding_box.max.y
+        {
             return None;
         }
 
@@ -286,10 +317,14 @@ impl<'font> Word {
     }
 
     pub(crate) fn word_intersect_a(&self, other: &Word) -> Option<Point<f32>> {
-        if self.bounding_box.max.x < other.bounding_box.min.x || self.bounding_box.max.y < other.bounding_box.min.y {
+        if self.bounding_box.max.x < other.bounding_box.min.x
+            || self.bounding_box.max.y < other.bounding_box.min.y
+        {
             return None;
         }
-        if self.bounding_box.min.x > other.bounding_box.max.x || self.bounding_box.min.y > other.bounding_box.max.y {
+        if self.bounding_box.min.x > other.bounding_box.max.x
+            || self.bounding_box.min.y > other.bounding_box.max.y
+        {
             return None;
         }
 
@@ -343,12 +378,9 @@ impl<'font> Word {
 
             if collisions % 2 == 1 {
                 // its inside the text
-                return Some(
-                    Point::default()
-                );
+                return Some(Point::default());
             }
         }
-
 
         // let own_collidables = self.collidables().collect::<Vec<Line<f32>>>();
         for glyph in &other.glyphs {

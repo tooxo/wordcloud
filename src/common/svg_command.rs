@@ -1,8 +1,8 @@
-use std::f32::consts::PI;
-use std::ops::{Add, Sub};
-use num_traits::{Num, NumCast, Zero};
 use crate::common::path_collision::Collidable;
 use crate::types::point::Point;
+use num_traits::{Num, NumCast, Zero};
+use std::f32::consts::PI;
+use std::ops::{Add, Sub};
 
 #[derive(Debug)]
 pub(crate) enum SVGPathCommand {
@@ -12,7 +12,6 @@ pub(crate) enum SVGPathCommand {
     Curve(Curve),
     End(End),
 }
-
 
 pub(crate) trait SvgCommand {
     fn collidable(&self) -> Option<Collidable>;
@@ -45,12 +44,27 @@ pub(crate) struct Parallelogram<T> {
 }
 
 impl<T> Parallelogram<T> {
-    pub(crate) fn lines(&self) -> Vec<Line<T>> where T: Copy {
+    pub(crate) fn lines(&self) -> Vec<Line<T>>
+    where
+        T: Copy,
+    {
         vec![
-            Line { start: self.p1, end: self.p2 },
-            Line { start: self.p2, end: self.p3 },
-            Line { start: self.p3, end: self.p4 },
-            Line { start: self.p4, end: self.p1 },
+            Line {
+                start: self.p1,
+                end: self.p2,
+            },
+            Line {
+                start: self.p2,
+                end: self.p3,
+            },
+            Line {
+                start: self.p3,
+                end: self.p4,
+            },
+            Line {
+                start: self.p4,
+                end: self.p1,
+            },
         ]
     }
 }
@@ -78,43 +92,53 @@ pub(crate) struct Curve {
 #[derive(Debug)]
 pub(crate) struct End {}
 
-impl<T> Line<T> where T: Copy + Sub<Output=T> + Add<Output=T> {
-    fn rotate_point(point: Point<T>, angle: T) -> Point<T> where T: num_traits::float::Float {
+impl<T> Line<T>
+where
+    T: Copy + Sub<Output = T> + Add<Output = T>,
+{
+    fn rotate_point(point: Point<T>, angle: T) -> Point<T>
+    where
+        T: num_traits::float::Float,
+    {
         Point {
             x: point.x * angle.cos() - point.y * angle.sin(),
             y: point.y * angle.cos() + point.x * angle.sin(),
         }
     }
 
-    pub(crate) fn thicken(&self, width: T) -> Parallelogram<T> where T: num_traits::float::Float + Zero + From<f32> {
+    pub(crate) fn thicken(&self, width: T) -> Parallelogram<T>
+    where
+        T: num_traits::float::Float + Zero + From<f32>,
+    {
         let half_width = width / <T as From<f32>>::from(2.0);
 
         let height = (self.start.y - self.end.y).abs();
         let width = (self.start.x - self.end.x).abs();
 
+        let deg = if height == T::zero() {
+            <T as From<f32>>::from(PI) / <T as From<f32>>::from(2.0)
+        } else if width == T::zero() {
+            // line is straight
+            T::zero()
+        } else {
+            let dy = self.start.y - self.end.y;
+            let dx = self.start.x - self.end.x;
 
-        let deg =
-            if height == T::zero() {
-                <T as From<f32>>::from(PI) / <T as From<f32>>::from(2.0)
-            } else if width == T::zero() {
-                // line is straight
-                T::zero()
-            } else {
-                let dy = self.start.y - self.end.y;
-                let dx = self.start.x - self.end.x;
-
-                (dy / dx).atan()
-            };
+            (dy / dx).atan()
+        };
 
         let start_rot = Line::rotate_point(self.start, deg);
         let end_rot = Line::rotate_point(self.end, deg);
 
-        let vec = Point { x: half_width, y: <T as From<f32>>::from(0.0) };
+        let vec = Point {
+            x: half_width,
+            y: <T as From<f32>>::from(0.0),
+        };
         let (p1, p2, p3, p4) = (
             start_rot - vec,
             start_rot + vec,
             end_rot - vec,
-            end_rot + vec
+            end_rot + vec,
         );
 
         Parallelogram {
@@ -128,19 +152,11 @@ impl<T> Line<T> where T: Copy + Sub<Output=T> + Add<Output=T> {
 
 impl SvgCommand for Line<f32> {
     fn collidable(&self) -> Option<Collidable> {
-        Some(
-            Collidable::Line(
-                *self
-            )
-        )
+        Some(Collidable::Line(*self))
     }
 
     fn to_string(&self, offset: &Point<f32>) -> String {
-        format!(
-            "L {} {}",
-            self.end.x + offset.x,
-            self.end.y + offset.y
-        )
+        format!("L {} {}", self.end.x + offset.x, self.end.y + offset.y)
     }
 }
 
@@ -160,11 +176,7 @@ impl SvgCommand for Move {
 
 impl SvgCommand for QuadCurve {
     fn collidable(&self) -> Option<Collidable> {
-        Some(
-            Collidable::BezierQuad(
-                *self
-            )
-        )
+        Some(Collidable::BezierQuad(*self))
     }
 
     fn to_string(&self, offset: &Point<f32>) -> String {
@@ -177,15 +189,15 @@ impl SvgCommand for QuadCurve {
         )
 
         /*let mut s = String::new();
-         let parts: Vec<Point<f32>> = self.divide_curve(2);
-         for part in parts {
-             s += &*format!(
-                 "L {} {}",
-                 part.x + f32::from(offset.x),
-                 part.y + f32::from(offset.y),
-             );
-         }
-         s*/
+        let parts: Vec<Point<f32>> = self.divide_curve(2);
+        for part in parts {
+            s += &*format!(
+                "L {} {}",
+                part.x + f32::from(offset.x),
+                part.y + f32::from(offset.y),
+            );
+        }
+        s*/
     }
 }
 
@@ -220,18 +232,12 @@ impl SvgCommand for End {
 impl QuadCurve {
     pub(crate) fn divide_curve(&self, parts: usize) -> Vec<Point<f32>> {
         let v = vec![parts; parts];
-        v
-            .iter()
+        v.iter()
             .enumerate()
-            .map(
-                |(i, &x)| (1.0 / (x as f32)) * i as f32
-            )
-            .map(
-                |x| self.get_point_on_curve(x)
-            )
+            .map(|(i, &x)| (1.0 / (x as f32)) * i as f32)
+            .map(|x| self.get_point_on_curve(x))
             .collect::<Vec<Point<f32>>>()
     }
-
 
     /// See https://www.geogebra.org/m/YGqtDGzK
     fn get_point_on_curve(&self, t: f32) -> Point<f32> {

@@ -6,7 +6,10 @@ pub(crate) struct Point<T> {
     pub(crate) y: T,
 }
 
-impl<T> Add<Point<T>> for Point<T> where T: Add<Output=T> {
+impl<T> Add<Point<T>> for Point<T>
+where
+    T: Add<Output = T>,
+{
     type Output = Point<T>;
 
     fn add(self, rhs: Point<T>) -> Self::Output {
@@ -17,7 +20,10 @@ impl<T> Add<Point<T>> for Point<T> where T: Add<Output=T> {
     }
 }
 
-impl<T> Sub<Point<T>> for Point<T> where T: Sub<Output=T> {
+impl<T> Sub<Point<T>> for Point<T>
+where
+    T: Sub<Output = T>,
+{
     type Output = Point<T>;
 
     fn sub(self, rhs: Point<T>) -> Self::Output {
@@ -28,7 +34,10 @@ impl<T> Sub<Point<T>> for Point<T> where T: Sub<Output=T> {
     }
 }
 
-impl<T> Point<T> where T: Sub<Output=T> + Copy {
+impl<T> Point<T>
+where
+    T: Sub<Output = T> + Copy,
+{
     pub(crate) fn sub_lx(&self, other: &Point<T>) -> Point<T> {
         Point {
             x: self.x - other.x,
@@ -43,7 +52,10 @@ impl<T> Point<T> where T: Sub<Output=T> + Copy {
     }
 }
 
-impl<T> Mul<T> for Point<T> where T: Mul<Output=T> + Copy {
+impl<T> Mul<T> for Point<T>
+where
+    T: Mul<Output = T> + Copy,
+{
     type Output = Point<T>;
 
     fn mul(self, rhs: T) -> Self::Output {
@@ -54,13 +66,19 @@ impl<T> Mul<T> for Point<T> where T: Mul<Output=T> + Copy {
     }
 }
 
-impl<T> PartialEq<Self> for Point<T> where T: PartialEq {
+impl<T> PartialEq<Self> for Point<T>
+where
+    T: PartialEq,
+{
     fn eq(&self, other: &Self) -> bool {
         self.x.eq(&other.x) && self.y.eq(&other.y)
     }
 }
 
-impl<T> Default for Point<T> where T: Default {
+impl<T> Default for Point<T>
+where
+    T: Default,
+{
     fn default() -> Self {
         Point {
             x: T::default(),
@@ -96,7 +114,10 @@ impl<T> From<rusttype::Point<T>> for Point<T> {
     }
 }
 
-impl<T> From<&rusttype::Point<T>> for Point<T> where T: Copy {
+impl<T> From<&rusttype::Point<T>> for Point<T>
+where
+    T: Copy,
+{
     fn from(value: &rusttype::Point<T>) -> Self {
         Point {
             x: value.x,
@@ -114,7 +135,10 @@ impl From<&swash::zeno::Point> for Point<f32> {
     }
 }
 
-impl<T> Point<T> where T: PartialOrd {
+impl<T> Point<T>
+where
+    T: PartialOrd,
+{
     pub(crate) fn full_le(&self, other: &Point<T>) -> bool {
         self.x <= other.x && self.y <= other.y
     }

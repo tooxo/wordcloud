@@ -1,8 +1,8 @@
 extern crate trie_rs;
 
+use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use rayon::iter::IntoParallelIterator;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
@@ -26,20 +26,18 @@ impl RankedWords {
             .into_iter()
             .collect::<HashSet<String>>()
             .par_iter()
-            .map(
-                |val| Word {
-                    content: val.clone(),
-                    count: v_v
-                        .par_iter()
-                        .map(|v2| val.eq(v2))
-                        .filter(|x| *x)
-                        .collect::<Vec<bool>>().len(),
-                }
-            ).collect::<Vec<Word>>();
+            .map(|val| Word {
+                content: val.clone(),
+                count: v_v
+                    .par_iter()
+                    .map(|v2| val.eq(v2))
+                    .filter(|x| *x)
+                    .collect::<Vec<bool>>()
+                    .len(),
+            })
+            .collect::<Vec<Word>>();
 
-        n.sort_by(
-            |w, w2| w.count.cmp(&w2.count)
-        );
+        n.sort_by(|w, w2| w.count.cmp(&w2.count));
 
         println!("-");
     }
@@ -48,17 +46,17 @@ impl RankedWords {
         let mut hs: HashMap<String, usize> = HashMap::new();
         for s in v {
             let f = hs.get(&s);
-            hs.insert(s, *f.unwrap_or_else(|| { &0 }) + 1);
+            hs.insert(s, *f.unwrap_or_else(|| &0) + 1);
         }
 
         let mut n = hs
             .into_par_iter()
-            .map(
-                |c| (String::from(c.0), c.1)
-            )
-            .map(
-                |k| Word { content: k.0, count: k.1 }
-            ).collect::<Vec<Word>>();
+            .map(|c| (String::from(c.0), c.1))
+            .map(|k| Word {
+                content: k.0,
+                count: k.1,
+            })
+            .collect::<Vec<Word>>();
 
         n.sort_by(|w, w2| w2.count.cmp(&w.count));
 

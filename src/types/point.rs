@@ -28,6 +28,21 @@ impl<T> Sub<Point<T>> for Point<T> where T: Sub<Output=T> {
     }
 }
 
+impl<T> Point<T> where T: Sub<Output=T> + Copy {
+    pub(crate) fn sub_lx(&self, other: &Point<T>) -> Point<T> {
+        Point {
+            x: self.x - other.x,
+            y: other.y,
+        }
+    }
+    pub(crate) fn sub_ly(&self, other: &Point<T>) -> Point<T> {
+        Point {
+            x: other.x,
+            y: self.y - other.y,
+        }
+    }
+}
+
 impl<T> Mul<T> for Point<T> where T: Mul<Output=T> + Copy {
     type Output = Point<T>;
 
@@ -84,6 +99,15 @@ impl<T> From<rusttype::Point<T>> for Point<T> {
 impl<T> From<&rusttype::Point<T>> for Point<T> where T: Copy {
     fn from(value: &rusttype::Point<T>) -> Self {
         Point {
+            x: value.x,
+            y: value.y,
+        }
+    }
+}
+
+impl From<&swash::zeno::Point> for Point<f32> {
+    fn from(value: &swash::zeno::Point) -> Self {
+        Self {
             x: value.x,
             y: value.y,
         }

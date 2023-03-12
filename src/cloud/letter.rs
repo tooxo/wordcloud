@@ -5,13 +5,14 @@ use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
 
+#[derive(Debug)]
 pub(crate) struct Letter {
     pub(crate) char: char,
     pub(crate) pixel_bounding_box: Rect<f32>,
 
     pub(crate) offset: Point<f32>,
     cursor: Point<f32>,
-    state: Vec<SVGPathCommand>,
+    pub(crate) state: Vec<SVGPathCommand>,
     pub(crate) simplified_state: Option<Vec<Line<f32>>>,
     pub(crate) rotation: Rotation,
 }
@@ -51,13 +52,13 @@ impl Letter {
 
     pub(crate) fn d(&self, global_off: &Point<f32>) -> String {
         let off: Point<f32> = self.rotation.rotate_point(self.offset) + *global_off;
-        self.state
-            .iter()
-            .map(
-                |x| x.to_string(&off),
-            )
-            .intersperse(String::from(" "))
-            .collect()
+        String::from_iter(
+            self.state
+                .iter()
+                .map(
+                    |x| x.to_string(&off)
+                )
+        )
     }
 
     pub(crate) fn simplify(&mut self) {

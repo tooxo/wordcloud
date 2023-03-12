@@ -1,7 +1,7 @@
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub(crate) enum Rotation {
     Zero,
     Ninety,

@@ -1,8 +1,19 @@
 use std::slice::Iter;
-use rusttype::{Font, Scale};
+use rusttype::{Font, OutlineBuilder, Scale};
+use svg::node::element::Script;
+use swash::FontRef;
+use swash::scale::{ScaleContext, Scaler, ScalerBuilder};
+use swash::scale::outline::Outline;
+use swash::shape::Direction::LeftToRight;
+use swash::shape::partition::shape;
+use swash::shape::ShapeContext;
+use swash::text::Script::Latin;
+use swash::zeno::{bounds, Command};
+use swash::zeno::PathData;
+
 use crate::cloud::letter::Letter;
 use crate::common::path_collision::collide_line_line;
-use crate::common::svg_command::Line;
+use crate::common::svg_command::{End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
@@ -51,6 +62,127 @@ impl<'font> Word {
 
         let mut w = Word { text: String::from(text), glyphs, offset: start, bounding_box: Rect::default(), scale, rotation };
         w.recalculate_bounding_box();
+
+        w
+    }
+
+    pub(crate) fn build_swash2(text: &str, font: FontRef, scale: Scale, start: Point<f32>, rotation: Rotation) -> Word {
+        let mut context = ShapeContext::new();
+        let mut scale_context = ScaleContext::new();
+        let mut shaper = context.builder(font)
+            .script(Latin)
+            .size(scale.x)
+            .direction(LeftToRight)
+            .features(&[("dlig", 1)])
+            .insert_dotted_circles(true)
+            .build();
+
+        let mut scaler = scale_context.builder(font)
+            .size(scale.x)
+            .build();
+
+        shaper.add_str(text);
+
+        let mut letters = Vec::new();
+        let chars = text.chars().collect::<Vec<char>>();
+        let mut advance = 0.0;
+        shaper.shape_with(
+            |c| {
+                letters.append(&mut c.glyphs
+                    .iter()
+                    .enumerate()
+                    .map(
+                        |(index, glyph)| {
+                            let mut outline: Outline = Outline::new();
+                            scaler.scale_outline_into(glyph.id, &mut outline);
+
+                            let bounds = outline.bounds();
+                            let bbox = Rect {
+                                min: Point {
+                                    x: bounds.min.x + advance,
+                                    y: bounds.min.y,
+                                },
+                                max: Point {
+                                    x: bounds.max.x + advance,
+                                    y: bounds.max.y,
+                                },
+                            };
+
+                            let mut letter = Letter::new(
+                                chars[index],
+                                bbox,
+                                Point { x: glyph.x + advance, y: glyph.y },
+                                rotation,
+                            );
+
+                            let commands = outline.path();
+                            for command in commands.commands() {
+                                let cmd: Command = command;
+                                match cmd {
+                                    Command::MoveTo(p) => letter.move_to(p.x, p.y),
+                                    Command::LineTo(p) => letter.line_to(p.x, p.y),
+                                    Command::CurveTo(x1, x2, x) => letter.curve_to(x1.x, x1.y, x2.x, x2.y, x.x, x.y),
+                                    Command::QuadTo(x1, x) => letter.quad_to(x1.x, x1.y, x.x, x.y),
+                                    Command::Close => letter.close(),
+                                }
+                            }
+                            advance += glyph.advance;
+
+                            letter
+                        }
+                    ).collect::<Vec<Letter>>()
+                );
+            }
+        );
+
+        let mut w = Word { text: String::from(text), glyphs: letters, offset: start, bounding_box: Rect::default(), scale, rotation };
+
+        let mut max_y = 0.0;
+        let mut min_y = f32::MAX;
+        for x in &w.glyphs {
+            if x.pixel_bounding_box.max.y > max_y {
+                max_y = x.pixel_bounding_box.max.y;
+            }
+            if x.pixel_bounding_box.min.y < min_y {
+                min_y = x.pixel_bounding_box.min.y;
+            }
+        }
+
+        // bc. of the mirroring there can be an offset to the actual starting point from the
+        // letters
+        for glyph in &mut w.glyphs {
+            let height_pt = Point { x: 0.0, y: max_y };
+            for command in &mut glyph.state {
+                *command = match &command {
+                    SVGPathCommand::Move(p) => SVGPathCommand::Move(
+                        Move { position: height_pt.sub_ly(&p.position) }
+                    ),
+                    SVGPathCommand::Line(p) => SVGPathCommand::Line(
+                        Line { start: height_pt.sub_ly(&p.start), end: height_pt.sub_ly(&p.end) }
+                    ),
+                    SVGPathCommand::QuadCurve(q) => SVGPathCommand::QuadCurve(
+                        QuadCurve {
+                            p_o: height_pt.sub_ly(&q.p_o),
+                            t: height_pt.sub_ly(&q.t),
+                            t1: height_pt.sub_ly(&q.t1),
+                        }
+                    ),
+                    SVGPathCommand::Curve(_) => unimplemented!(),
+                    SVGPathCommand::End(_) => SVGPathCommand::End(End {}),
+                }
+            }
+
+            glyph.pixel_bounding_box = Rect {
+                min: height_pt.sub_ly(&glyph.pixel_bounding_box.min),
+                max: height_pt.sub_ly(&glyph.pixel_bounding_box.max),
+            };
+            glyph.pixel_bounding_box.normalize();
+            glyph.simplify();
+            assert!(glyph.pixel_bounding_box.is_normal());
+        }
+
+        w.recalculate_bounding_box();
+        assert!(w.bounding_box.is_normal());
 
         w
     }
@@ -177,7 +309,7 @@ impl<'font> Word {
     }
 
     pub(crate) fn word_intersect(&self, other: &Word) -> Option<Point<f32>> {
-        if !self.bounding_box.overlaps(&other.bounding_box) {
+        if !self.bounding_box.extend(5.0).overlaps(&other.bounding_box) {
             return None;
         }
 
@@ -209,13 +341,6 @@ impl<'font> Word {
                 }
             }
 
-            if self.text == "melt" {
-                dbg!(collisions);
-                dbg!(midpoint);
-                dbg!(&self.bounding_box);
-                dbg!(&self.offset);
-            }
-
             if collisions % 2 == 1 {
                 // its inside the text
                 return Some(
@@ -230,43 +355,12 @@ impl<'font> Word {
             let bbox = glyph.relative_bounding_box(&other.rotation) + other.offset;
             if self.bounding_box.overlaps(&bbox) {
                 for l in glyph.absolute_collidables(&other.rotation, other.offset) {
-                    // let thick = l.thicken(10.0);
-                    // let lines = thick.lines();
-
                     if self.bounding_box.extend(5.0).intersects(&l) {
                         return Some(Point::default());
                     }
-
-                    /*for own in &own_collidables {
-                        for line in &lines {
-                            let o = collide_line_line(line, own);
-
-                            if let Some(i) = o {
-                                return Some(i);
-                            }
-                        }
-                    }*/
                 }
             }
         }
-
-        /*for left_collidable in &left_collidables {
-            let thick = left_collidable.thicken(10.0);
-            let thick_lines = thick.lines();
-            for right_collidable in &right_collidables {
-                for thick_line in &thick_lines {
-                    let o = collide_line_line(right_collidable, thick_line);
-
-                    if let Some(i) = o {
-                        return Some(i);
-                    }
-                }
-            }
-        }*/
-        if self.text == "melt" {
-            dbg!("placed");
-        }
-
         None
     }
 }

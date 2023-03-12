@@ -4,6 +4,7 @@ use num_traits::{Num, NumCast, Zero};
 use crate::common::path_collision::Collidable;
 use crate::types::point::Point;
 
+#[derive(Debug)]
 pub(crate) enum SVGPathCommand {
     Move(Move),
     Line(Line<f32>),
@@ -30,7 +31,7 @@ impl SVGPathCommand {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct Line<T> {
     pub(crate) start: Point<T>,
     pub(crate) end: Point<T>,
@@ -54,17 +55,19 @@ impl<T> Parallelogram<T> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Move {
     pub(crate) position: Point<f32>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct QuadCurve {
     pub(crate) t1: Point<f32>,
     pub(crate) t: Point<f32>,
     pub(crate) p_o: Point<f32>,
 }
 
+#[derive(Debug)]
 pub(crate) struct Curve {
     pub(crate) t2: Point<f32>,
     pub(crate) t1: Point<f32>,
@@ -72,9 +75,10 @@ pub(crate) struct Curve {
     pub(crate) p_o: Point<f32>,
 }
 
+#[derive(Debug)]
 pub(crate) struct End {}
 
-impl<T> Line<T> where T: Copy + Sub<Output=T> + Add<Output=T>{
+impl<T> Line<T> where T: Copy + Sub<Output=T> + Add<Output=T> {
     fn rotate_point(point: Point<T>, angle: T) -> Point<T> where T: num_traits::float::Float {
         Point {
             x: point.x * angle.cos() - point.y * angle.sin(),
@@ -209,7 +213,7 @@ impl SvgCommand for End {
     }
 
     fn to_string(&self, _offset: &Point<f32>) -> String {
-        "Z".to_string()
+        String::from("Z")
     }
 }
 

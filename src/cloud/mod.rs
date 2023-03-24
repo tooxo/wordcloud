@@ -1,3 +1,4 @@
+use std::fs::create_dir;
 use crate::cloud::word::Word;
 use crate::types::point::Point;
 use crate::types::rect::Rect;
@@ -19,13 +20,15 @@ use std::thread::available_parallelism;
 use image::imageops;
 use image::GenericImageView;
 use image::imageops::grayscale;
+use quadtree_rs::entry::Entry;
 use crate::image::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string};
 use svg::node::element::Text;
+use crate::io::debug::{debug_background_collision, debug_background_on_result, debug_collidables, debug_text};
 use crate::types::rotation::Rotation::Ninety;
 
 
-mod letter;
-mod word;
+pub(crate) mod letter;
+pub(crate) mod word;
 mod word_cloud;
 
 struct Inp {
@@ -267,10 +270,10 @@ pub fn create_image() {
 
     let mut lock = random_arc.lock();
 
-    for _ in 0..20 {
+    for _ in 0..1 {
         inp.push(Inp {
             text: words[lock.gen_range(0..words.len())].parse().unwrap(),
-            scale: lock.gen_range(40..100) as f32 * mult,
+            scale: lock.gen_range(80..100) as f32 * mult,
             rotation: Rotation::Zero,
         });
     }
@@ -283,7 +286,7 @@ pub fn create_image() {
         });
     }
 
-    for _ in 0..800 {
+    for _ in 0..0 {
         inp.push(Inp {
             text: words[lock.gen_range(0..words.len())].parse().unwrap(),
             scale: lock.gen_range(5..20) as f32 * mult,
@@ -291,7 +294,7 @@ pub fn create_image() {
         });
     }
 
-    for _ in 0..800 {
+    for _ in 0..0 {
         inp.push(Inp {
             text: words[lock.gen_range(0..words.len())].parse().unwrap(),
             scale: lock.gen_range(5..20) as f32 * mult,
@@ -523,11 +526,7 @@ pub fn create_image() {
         }
     }
 
-    let mut document2 = Document::new()
-        .set("viewBox", (0, 0, 1000, 1000))
-        .set("height", 1000)
-        .set("width", 1000);
-
+    let entries: Vec<&Entry<u64, Word>> = quad_tree.iter().collect();
     let collected_entries: Vec<&Word> = quad_tree.iter().map(|x| x.value_ref()).collect();
 
     let sliced = collected_entries
@@ -567,138 +566,14 @@ pub fn create_image() {
                 }
             }
         );
+    svg::save("created.svg", &doc_mutex.lock().clone()).unwrap();
 
-    let document = Document::new()
-        .set("viewBox", (0, 0, 1000, 1000))
-        .set("height", 1000)
-        .set("width", 1000);
-
-    let doc_text = Arc::new(Mutex::new(document));
-
-    sliced.par_iter()
-        .for_each(
-            |x| {
-                for word in *x {
-                    let mut t = Text::new()
-                        .set("x", word.bounding_box.min.x)
-                        .set("y", word.bounding_box.min.y)
-                        .set("font-size", word.scale);
-                    if word.rotation == Ninety {
-                        t.assign("style", "transform: rotate(90deg); transform-origin: unset");
-                    }
-                    t.append(
-                        svg::node::Text::new(&word.text)
-                    );
-                    {
-                        doc_text.lock().append(t);
-                    }
-                }
-            }
-        );
-
-    svg::save("text.svg", &doc_text.lock().clone()).unwrap();
-
-
-    /*
-    for entry in quad_tree.iter() {
-        let path = entry.value_ref();
-        let mut group = Group::new()
-            .set("data-text", path.text.clone())
-            .set("data-scale", path.scale)
-            .set("fill", "black")
-            .set("stroke", "none");
-
-        let d: String = path.glyphs
-            .iter()
-            .map(|g| g.d(&path.offset))
-            .intersperse(String::from(" "))
-            .collect();
-
-        let p = Path::new().set("d", d);
-
-        /*for x in &path.glyphs {
-            let p = Path::new().set("d", x.d(&path.offset));
-            group.append(p);
-        }
-        document.append(group);*/
-        // document.append(p);
-
-        let rec = Rectangle::new()
-            .set("x", path.bounding_box.min.x)
-            .set("y", path.bounding_box.min.y)
-            .set("width", path.bounding_box.width())
-            .set("height", path.bounding_box.height())
-            .set("stroke", "yellow")
-            .set("stroke-width", 1)
-            .set("fill", "none");
-
-        document2.append(rec);
+    println!("Dumping Debug Files");
+    if !std::path::Path::new("debug").is_dir() {
+        create_dir("debug").unwrap();
     }
-    */
-
-    svg::save("test.svg", &doc_mutex.lock().clone()).unwrap();
-
-
-    for x in quad_tree.iter() {
-        let w = x.value_ref();
-        for glyph in &w.glyphs {
-            for x in glyph.absolute_collidables(&w.rotation, w.offset) {
-                let p = Path::new()
-                    .set("stroke", "black")
-                    .set("stroke-width", 1)
-                    .set(
-                        "d",
-                        format!("M {} {} L {} {} Z", x.start.x, x.start.y, x.end.x, x.end.y),
-                    );
-                document2.append(p);
-            }
-
-            let r = glyph.relative_bounding_box(&w.rotation) + w.offset;
-            let p = Rectangle::new()
-                .set("stroke", "green")
-                .set("stroke-width", 1)
-                .set("fill", "none")
-                .set("x", r.min.x)
-                .set("y", r.min.y)
-                .set("width", r.width())
-                .set("height", r.height());
-
-            document2.append(p);
-        }
-        /*for x in w.collidables() {
-            let off = Point { x: 0.0, y: 0.0 };
-            let line_s = x.to_string(&off);
-
-            let p = Path::new()
-                .set("stroke", "black")
-                .set("stroke-width", 1)
-                .set("d",
-                     format!(
-                         "M {} {} {} Z",
-                         x.start.x, x.start.y, line_s,
-                     ),
-                );
-
-            document2.append(p);
-        }*/
-    }
-
-    svg::save("coll.svg", &document2).unwrap();
-
-    let mut coll = Document::new()
-        .set("viewBox", (0, 0, 1000, 1000))
-        .set("height", 1000)
-        .set("width", 1000);
-
-    for bound in quadtree_boundaries.iter() {
-        let rec = svg::node::element::Rectangle::new()
-            .set("x", bound.anchor().x)
-            .set("y", bound.anchor().y)
-            .set("width", bound.area().width())
-            .set("height", bound.area().height());
-
-        coll.append(rec);
-    }
-
-    svg::save("bbox.svg", &coll).unwrap();
+    debug_background_collision("debug/background_collision.svg", quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>());
+    debug_collidables("debug/collidables.svg", &entries);
+    debug_text("debug/text.svg", &entries);
+    debug_background_on_result("debug/text_on_background.svg", &entries, &quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>());
 }

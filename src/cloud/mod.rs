@@ -450,38 +450,35 @@ pub fn create_image() {
 
                 let boundary_region = AreaBuilder::default()
                     .anchor(quadtree_rs::point::Point {
-                        x: ((word.bounding_box.min.x / RESIZE_FACTOR as f32) / quadtree_divisor).ceil() as u64,
-                        y: ((word.bounding_box.min.y / RESIZE_FACTOR as f32) / quadtree_divisor).ceil() as u64,
+                        x: (word.bounding_box.min.x / RESIZE_FACTOR as f32).ceil() as u64,
+                        y: (word.bounding_box.min.y / RESIZE_FACTOR as f32).ceil() as u64,
                     })
                     .dimensions((
-                        (word.bounding_box.width() / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
-                        (word.bounding_box.height() / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
+                        (word.bounding_box.width() / RESIZE_FACTOR as f32).ceil() as u64,
+                        (word.bounding_box.height() / RESIZE_FACTOR as f32).ceil() as u64,
                     ))
                     .build()
                     .unwrap();
 
 
                 if quadtree_boundaries.query(boundary_region).next().is_some() {
-                    iters += 1;
-                    if iters >= 25 {
-                        break;
-                    }
-
-                    continue;
+                    intersected = true;
                 }
 
-                for result in quad_tree.query(new_region) {
-                    let other = result.value_ref();
+                if !intersected {
+                    for result in quad_tree.query(new_region) {
+                        let other = result.value_ref();
 
-                    let intersection = word.word_intersect(other);
-                    if intersection.is_some() {
-                        intersected = true;
-                        break;
+                        let intersection = word.word_intersect(other);
+                        if intersection.is_some() {
+                            intersected = true;
+                            break;
+                        }
                     }
                 }
 
                 if !intersected {
-                    println!("Placed {} {} {}", word.text, quad_tree.len(), iters);
+                    // println!("Placed {} {} {}", word.text, quad_tree.len(), iters);
                     placed = true;
 
                     match quad_tree.insert(new_region, word) {
@@ -498,31 +495,45 @@ pub fn create_image() {
                 }
             }
 
-            let revelations = theta / (std::f64::consts::PI * 2.0f64);
-            if revelations < 5.0 {
-                theta += 1.0;
+            if iters % 10 == 0 && iters > 0 {
+                let mut lck = random_arc.lock();
+                let new_pos = Point {
+                    x: lck.gen_range(0.0..width as f32),
+                    y: lck.gen_range(0.0..width as f32),
+                };
+
+                drop(lck);
+
+                iters += 1;
+
+                word.move_word(&new_pos);
+                theta = 0.0;
             } else {
-                theta += 0.1_f64;
+                let revelations = theta / (std::f64::consts::PI * 2.0f64);
+                if revelations < 5.0 {
+                    theta += 1.0;
+                } else {
+                    theta += 0.1_f64;
+                }
+
+                let r = a + b * theta;
+
+                let new_pos = Point {
+                    x: ((r * theta.cos()) as i32 + word.offset.x as i32) as f32,
+                    y: ((r * theta.sin()) as i32 + word.offset.y as i32) as f32,
+                };
+
+                iters += 1;
+
+                word.move_word(&new_pos);
             }
-
-            let r = a + b * theta;
-
-            let new_pos = Point {
-                x: ((r * theta.cos()) as i32 + word.offset.x as i32) as f32,
-                y: ((r * theta.sin()) as i32 + word.offset.y as i32) as f32,
-            };
-
-            iters += 1;
-
-            word.move_word(&new_pos);
-
             if iters > 25 {
                 break;
             }
         }
 
         if !placed {
-            println!("Failed to place!");
+            // println!("Failed to place!");
         }
     }
 

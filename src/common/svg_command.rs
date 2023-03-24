@@ -1,6 +1,6 @@
 use crate::common::path_collision::Collidable;
 use crate::types::point::Point;
-use num_traits::{Num, NumCast, Zero};
+use num_traits::{Zero};
 use std::f32::consts::PI;
 use std::ops::{Add, Sub};
 
@@ -36,6 +36,7 @@ pub(crate) struct Line<T> {
     pub(crate) end: Point<T>,
 }
 
+#[allow(dead_code)]
 pub(crate) struct Parallelogram<T> {
     p1: Point<T>,
     p2: Point<T>,
@@ -43,6 +44,7 @@ pub(crate) struct Parallelogram<T> {
     p4: Point<T>,
 }
 
+#[allow(dead_code)]
 impl<T> Parallelogram<T> {
     pub(crate) fn lines(&self) -> Vec<Line<T>>
     where
@@ -92,6 +94,7 @@ pub(crate) struct Curve {
 #[derive(Debug)]
 pub(crate) struct End {}
 
+#[allow(dead_code)]
 impl<T> Line<T>
 where
     T: Copy + Sub<Output = T> + Add<Output = T>,

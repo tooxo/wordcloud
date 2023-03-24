@@ -1,7 +1,7 @@
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) enum Rotation {
     Zero,
     Ninety,
@@ -17,8 +17,32 @@ impl Rotation {
                 x: -point.y,
                 y: point.x,
             },
-            Rotation::OneEighty => unimplemented!("one eigthy"),
-            Rotation::TwoSeventy => unimplemented!("twoseventy"),
+            Rotation::OneEighty => Point {
+                x: -point.x,
+                y: -point.y,
+            },
+            Rotation::TwoSeventy => Point {
+                x: -point.y,
+                y: point.x,
+            },
+        }
+    }
+
+    pub(crate) fn rotate_point_back(&self, point: &Point<f32>) -> Point<f32> {
+        match self {
+            Rotation::Zero => *point,
+            Rotation::Ninety => Point {
+                x: point.y,
+                y: -point.x,
+            },
+            Rotation::OneEighty => Point {
+                x: -point.x,
+                y: -point.y,
+            },
+            Rotation::TwoSeventy => Point {
+                x: point.y,
+                y: -point.x,
+            }
         }
     }
 

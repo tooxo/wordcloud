@@ -3,7 +3,6 @@ use crate::common::svg_command::{Curve, End, Line, Move, QuadCurve, SVGPathComma
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
-use rusttype::OutlineBuilder;
 
 #[derive(Debug)]
 pub(crate) struct Letter {
@@ -88,15 +87,15 @@ impl Letter {
     }
 }
 
-impl OutlineBuilder for Letter {
-    fn move_to(&mut self, x: f32, y: f32) {
+impl Letter {
+    pub(crate) fn move_to(&mut self, x: f32, y: f32) {
         self.cursor = self.rotation.rotate_point(Point { x, y });
         self.state.push(SVGPathCommand::Move(Move {
             position: self.rotation.rotate_point(Point { x, y }),
         }));
     }
 
-    fn line_to(&mut self, x: f32, y: f32) {
+    pub(crate) fn line_to(&mut self, x: f32, y: f32) {
         self.state.push(SVGPathCommand::Line(Line {
             start: self.cursor,
             end: self.rotation.rotate_point(Point { x, y }),
@@ -104,7 +103,7 @@ impl OutlineBuilder for Letter {
         self.cursor = self.rotation.rotate_point(Point { x, y });
     }
 
-    fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
+    pub(crate) fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
         self.state.push(SVGPathCommand::QuadCurve(QuadCurve {
             t1: self.rotation.rotate_point(Point { x: x1, y: y1 }),
             t: self.rotation.rotate_point(Point { x, y }),
@@ -113,7 +112,7 @@ impl OutlineBuilder for Letter {
         self.cursor = self.rotation.rotate_point(Point { x, y });
     }
 
-    fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
+    pub(crate) fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
         self.state.push(SVGPathCommand::Curve(Curve {
             t2: self.rotation.rotate_point(Point { x: x2, y: y2 }),
             t1: self.rotation.rotate_point(Point { x: x1, y: y1 }),
@@ -123,7 +122,7 @@ impl OutlineBuilder for Letter {
         self.cursor = self.rotation.rotate_point(Point { x, y });
     }
 
-    fn close(&mut self) {
+    pub(crate) fn close(&mut self) {
         self.state.push(SVGPathCommand::End(End {}));
     }
 }

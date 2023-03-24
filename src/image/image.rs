@@ -1,16 +1,41 @@
-use image::buffer::Pixels;
-use image::imageops::{grayscale, grayscale_alpha};
-use image::{
-    DynamicImage, GrayAlphaImage, GrayImage, ImageBuffer, Luma, LumaA, Rgb, RgbImage, RgbaImage,
-};
-use rayon::prelude::{IntoParallelIterator, ParallelBridge};
+use edge_detection::Detection;
 
-pub(crate) fn convert_image_to_greyscale(image: &DynamicImage) -> GrayImage {
-    grayscale(image)
-}
 
-pub(crate) fn canny_algorithm(image: &GrayImage, sigma: f32) {
+use image::{DynamicImage, GrayImage, GenericImageView, Rgba};
+use crate::types::rect::Rect;
+
+pub(crate) fn canny_algorithm(image: &GrayImage, sigma: f32) -> Detection {
     let det = edge_detection::canny(image.clone(), sigma, 0.3, 0.05);
 
     det.as_image().save("canny.png").expect("save failed");
+
+    det
+}
+
+pub(crate) fn average_color_for_rect(image: &DynamicImage, rect: &Rect<u32>) -> Rgba<u8> {
+    let colors: Vec<[u8; 4]> = (rect.min.x..rect.max.x)
+        .flat_map(
+            |x|
+                (rect.min.y..rect.max.y)
+                    .map(
+                        |y|
+                            image.get_pixel(x, y).0
+                    ).collect::<Vec<[u8; 4]>>()
+        ).collect();
+
+    let summed_red: usize = (colors.iter().map(|c| c[0] as usize).sum::<usize>()) / colors.len();
+    let summed_green: usize = colors.iter().map(|c| c[1] as usize).sum::<usize>() / colors.len();
+    let summed_blue: usize = colors.iter().map(|c| c[2] as usize).sum::<usize>() / colors.len();
+    let summed_alpha: usize = colors.iter().map(|c| c[3] as usize).sum::<usize>() / colors.len();
+
+    Rgba([summed_red as u8, summed_green as u8, summed_blue as u8, summed_alpha as u8])
+}
+
+pub(crate) fn color_to_rgb_string(rgba: &Rgba<u8>) -> String {
+    format!(
+        "rgb({}, {}, {})",
+        rgba.0[0],
+        rgba.0[1],
+        rgba.0[2],
+    )
 }

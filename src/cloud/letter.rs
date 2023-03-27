@@ -14,6 +14,8 @@ pub(crate) struct Letter {
     pub(crate) state: Vec<SVGPathCommand>,
     pub(crate) simplified_state: Option<Vec<Line<f32>>>,
     pub(crate) rotation: Rotation,
+
+    move_cursor: Point<f32>,
 }
 
 impl Letter {
@@ -31,6 +33,7 @@ impl Letter {
             state: Vec::default(),
             simplified_state: None,
             rotation,
+            move_cursor: Point::default(),
         }
     }
 
@@ -90,6 +93,7 @@ impl Letter {
 impl Letter {
     pub(crate) fn move_to(&mut self, x: f32, y: f32) {
         self.cursor = self.rotation.rotate_point(Point { x, y });
+        self.move_cursor = self.rotation.rotate_point(Point { x, y });
         self.state.push(SVGPathCommand::Move(Move {
             position: self.rotation.rotate_point(Point { x, y }),
         }));
@@ -123,6 +127,10 @@ impl Letter {
     }
 
     pub(crate) fn close(&mut self) {
+        self.state.push(SVGPathCommand::Line(Line {
+            start: self.cursor,
+            end: self.move_cursor,
+        }));
         self.state.push(SVGPathCommand::End(End {}));
     }
 }

@@ -448,10 +448,10 @@ pub fn create_image() {
             if visible_space.contains(&word.bounding_box) {
                 let mut intersected: bool = false;
 
-                let new_region = AreaBuilder::default()
+                let search_region = AreaBuilder::default()
                     .anchor(quadtree_rs::point::Point {
-                        x: (word.bounding_box.min.x / quadtree_divisor).ceil() as u64,
-                        y: (word.bounding_box.min.y / quadtree_divisor).ceil() as u64,
+                        x: f32::max((word.bounding_box.min.x / quadtree_divisor).ceil() - 1., 0.) as u64,
+                        y: f32::max((word.bounding_box.min.y / quadtree_divisor).ceil() - 1., 0.) as u64,
                     })
                     .dimensions((
                         (word.bounding_box.width() / quadtree_divisor).ceil() as u64 + 2,
@@ -459,6 +459,21 @@ pub fn create_image() {
                     ))
                     .build()
                     .unwrap();
+
+                let insert_region =
+                    AreaBuilder::default()
+                        .anchor(
+                            (
+                                (word.bounding_box.min.x / quadtree_divisor).ceil() as u64,
+                                (word.bounding_box.min.y / quadtree_divisor).ceil() as u64
+                            ).into()
+                        )
+                        .dimensions((
+                            (word.bounding_box.width() / quadtree_divisor).ceil() as u64,
+                            (word.bounding_box.height() / quadtree_divisor).ceil() as u64,
+                        ))
+                        .build()
+                        .unwrap();
 
                 let boundary_region = AreaBuilder::default()
                     .anchor(quadtree_rs::point::Point {
@@ -478,10 +493,10 @@ pub fn create_image() {
                 }
 
                 if !intersected {
-                    for result in quad_tree.query(new_region) {
-                        let other = result.value_ref();
+                    for result in quad_tree.query(search_region) {
+                        comparisons += 1;
 
-                        let intersection = word.word_intersect(other);
+                        let intersection = word.word_intersect(result.value_ref());
                         if intersection.is_some() {
                             intersected = true;
                             break;
@@ -493,7 +508,7 @@ pub fn create_image() {
                     // println!("Placed {} {} {}", word.text, quad_tree.len(), iters);
                     placed = true;
 
-                    match quad_tree.insert(new_region, word) {
+                    match quad_tree.insert(insert_region, word) {
                         None => {
                             /*dbg!(new_region);
                             dbg!(quad_tree.height(), quad_tree.width());
@@ -539,7 +554,18 @@ pub fn create_image() {
 
                 word.move_word(&new_pos);
             }
-            if iters > 25 {
+            if iters % 25 == 0 {
+                // dbg!("resizing");
+
+                word = Word::build_swash2(
+                    word.text.as_str(),
+                    font,
+                    word.scale - 5.,
+                    word.offset,
+                    word.rotation,
+                );
+            }
+            if iters > 55 {
                 break;
             }
         }

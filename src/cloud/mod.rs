@@ -336,31 +336,43 @@ pub fn create_image() {
     let detected_image = detection.as_image();
 
     let new_width = width / RESIZE_FACTOR;
-    let depth = (new_width as f32).log2() / 2.0_f32.log2();
+    let depth = (new_width as f32 / quadtree_divisor).log2() / 2.0_f32.log2();
     let mut quadtree_boundaries: Quadtree<u64, u8> = Quadtree::new(depth.ceil() as usize);
 
     let mut layover = 0usize;
     let multiplier = width as f32 / detected_image.width() as f32;
     for (x, y, col) in detected_image.pixels() {
         if col.0[0] != 0 || col.0[1] != 0 || col.0[2] != 0 {
-            let area = AreaBuilder::default()
+            let (pos_x, pos_y) = (
+                f32::max(x as f32 * multiplier / quadtree_divisor - 1., 0.),
+                f32::max(y as f32 * multiplier / quadtree_divisor - 1., 0.)
+            );
+
+            let search_area = AreaBuilder::default()
                 .anchor(
-                    quadtree_rs::point::Point {
-                        x: (x as f32 * multiplier) as u64,
-                        y: (y as f32 * multiplier) as u64,
-                    }
+                    (pos_x as u64, pos_y as u64).into()
                 )
                 .dimensions(
-                    ((2. * multiplier) as u64, (2. * multiplier) as u64)
+                    ((4. * multiplier / quadtree_divisor) as u64, (4. * multiplier / quadtree_divisor) as u64)
                 ).build().unwrap();
-            let other = quadtree_boundaries.query(area).next();
+
+            let insert_area = AreaBuilder::default()
+                .anchor(
+                    ((x as f32 * multiplier / quadtree_divisor) as u64, (y as f32 * multiplier / quadtree_divisor) as u64).into()
+                )
+                .dimensions(
+                    ((1.) as u64, (1.) as u64)
+                ).build().unwrap();
+
+            let other = quadtree_boundaries.query(search_area).next();
             if let Some(o) = other {
-                let comb = Rect::from(&area).combine_rects(&Rect::from(&o.area()));
+                let comb = Rect::from(&insert_area).combine_rects(&Rect::from(&o.area()));
                 if let Some(com) = comb {
+                    let val = *o.value_ref();
                     quadtree_boundaries.delete_by_handle(o.handle());
                     quadtree_boundaries.insert(
                         Area::from(&com),
-                        0,
+                        val + 1,
                     );
                     continue;
                 } else {
@@ -369,7 +381,7 @@ pub fn create_image() {
             }
             quadtree_boundaries
                 .insert(
-                    area, 0,
+                    insert_area, 0,
                 );
         }
     }
@@ -450,12 +462,12 @@ pub fn create_image() {
 
                 let boundary_region = AreaBuilder::default()
                     .anchor(quadtree_rs::point::Point {
-                        x: (word.bounding_box.min.x / RESIZE_FACTOR as f32).ceil() as u64,
-                        y: (word.bounding_box.min.y / RESIZE_FACTOR as f32).ceil() as u64,
+                        x: (word.bounding_box.min.x / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
+                        y: (word.bounding_box.min.y / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
                     })
                     .dimensions((
-                        (word.bounding_box.width() / RESIZE_FACTOR as f32).ceil() as u64,
-                        (word.bounding_box.height() / RESIZE_FACTOR as f32).ceil() as u64,
+                        (word.bounding_box.width() / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
+                        (word.bounding_box.height() / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
                     ))
                     .build()
                     .unwrap();
@@ -579,12 +591,14 @@ pub fn create_image() {
         );
     svg::save("created.svg", &doc_mutex.lock().clone()).unwrap();
 
-    println!("Dumping Debug Files");
-    if !std::path::Path::new("debug").is_dir() {
-        create_dir("debug").unwrap();
+    if true {
+        println!("Dumping Debug Files");
+        if !std::path::Path::new("debug").is_dir() {
+            create_dir("debug").unwrap();
+        }
+        debug_background_collision("debug/background_collision.svg", quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>(), quadtree_divisor);
+        debug_collidables("debug/collidables.svg", &entries);
+        debug_text("debug/text.svg", &entries);
+        debug_background_on_result("debug/text_on_background.svg", &entries, &quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>(), quadtree_divisor);
     }
-    debug_background_collision("debug/background_collision.svg", quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>());
-    debug_collidables("debug/collidables.svg", &entries);
-    debug_text("debug/text.svg", &entries);
-    debug_background_on_result("debug/text_on_background.svg", &entries, &quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>());
 }

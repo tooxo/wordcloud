@@ -1,6 +1,5 @@
-use crate::common::path_collision::Collidable;
 use crate::types::point::Point;
-use num_traits::{Zero};
+use num_traits::Zero;
 use std::f32::consts::PI;
 use std::ops::{Add, Sub};
 
@@ -14,8 +13,9 @@ pub(crate) enum SVGPathCommand {
 }
 
 pub(crate) trait SvgCommand {
-    fn collidable(&self) -> Option<Collidable>;
     fn to_string(&self, offset: &Point<f32>) -> String;
+    fn append_to_string(&self, offset: &Point<f32>, string: &mut String);
+    fn length_estimation(&self) -> usize;
 }
 
 impl SVGPathCommand {
@@ -26,6 +26,26 @@ impl SVGPathCommand {
             SVGPathCommand::QuadCurve(e) => e.to_string(offset),
             SVGPathCommand::Curve(e) => e.to_string(offset),
             SVGPathCommand::End(e) => e.to_string(offset),
+        }
+    }
+
+    pub(crate) fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
+        match self {
+            SVGPathCommand::Move(x) => x.append_to_string(offset, string),
+            SVGPathCommand::Line(x) => x.append_to_string(offset, string),
+            SVGPathCommand::QuadCurve(x) => x.append_to_string(offset, string),
+            SVGPathCommand::Curve(x) => x.append_to_string(offset, string),
+            SVGPathCommand::End(x) => x.append_to_string(offset, string),
+        }
+    }
+
+    pub(crate) fn length_estimation(&self) -> usize {
+        match self {
+            SVGPathCommand::Move(x) => x.length_estimation(),
+            SVGPathCommand::Line(x) => x.length_estimation(),
+            SVGPathCommand::QuadCurve(x) => x.length_estimation(),
+            SVGPathCommand::Curve(x) => x.length_estimation(),
+            SVGPathCommand::End(x) => x.length_estimation(),
         }
     }
 }
@@ -154,20 +174,23 @@ where
 }
 
 impl SvgCommand for Line<f32> {
-    fn collidable(&self) -> Option<Collidable> {
-        Some(Collidable::Line(*self))
-    }
-
     fn to_string(&self, offset: &Point<f32>) -> String {
         format!("L {} {}", self.end.x + offset.x, self.end.y + offset.y)
+    }
+
+    fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
+        string.push_str("L ");
+        string.push_str(ryu::Buffer::new().format_finite(self.end.x + offset.x));
+        string.push(' ');
+        string.push_str(ryu::Buffer::new().format_finite(self.end.y + offset.y))
+    }
+
+    fn length_estimation(&self) -> usize {
+        3 + 7 + 7
     }
 }
 
 impl SvgCommand for Move {
-    fn collidable(&self) -> Option<Collidable> {
-        None
-    }
-
     fn to_string(&self, offset: &Point<f32>) -> String {
         format!(
             "M {} {}",
@@ -175,13 +198,20 @@ impl SvgCommand for Move {
             self.position.y + offset.y
         )
     }
+
+    fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
+        string.push_str("M ");
+        string.push_str(ryu::Buffer::new().format_finite(self.position.x + offset.x));
+        string.push(' ');
+        string.push_str(ryu::Buffer::new().format_finite(self.position.y + offset.y))
+    }
+
+    fn length_estimation(&self) -> usize {
+        3 + 7 + 7
+    }
 }
 
 impl SvgCommand for QuadCurve {
-    fn collidable(&self) -> Option<Collidable> {
-        Some(Collidable::BezierQuad(*self))
-    }
-
     fn to_string(&self, offset: &Point<f32>) -> String {
         format!(
             "Q {} {}, {} {} ",
@@ -190,25 +220,25 @@ impl SvgCommand for QuadCurve {
             self.t.x + offset.x,
             self.t.y + offset.y
         )
+    }
 
-        /*let mut s = String::new();
-        let parts: Vec<Point<f32>> = self.divide_curve(2);
-        for part in parts {
-            s += &*format!(
-                "L {} {}",
-                part.x + f32::from(offset.x),
-                part.y + f32::from(offset.y),
-            );
-        }
-        s*/
+    fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
+        string.push_str("Q ");
+        string.push_str(ryu::Buffer::new().format_finite(self.t1.x + offset.x));
+        string.push(' ');
+        string.push_str(ryu::Buffer::new().format_finite(self.t1.y + offset.y));
+        string.push_str(", ");
+        string.push_str(ryu::Buffer::new().format_finite(self.t.x + offset.x));
+        string.push(' ');
+        string.push_str(ryu::Buffer::new().format_finite(self.t.y + offset.y))
+    }
+
+    fn length_estimation(&self) -> usize {
+        3 + 7 + 7 + 3 + 7 + 7
     }
 }
 
 impl SvgCommand for Curve {
-    fn collidable(&self) -> Option<Collidable> {
-        unimplemented!("curve unimplemented")
-    }
-
     fn to_string(&self, offset: &Point<f32>) -> String {
         format!(
             "C {} {}, {} {}, {} {} ",
@@ -220,15 +250,27 @@ impl SvgCommand for Curve {
             self.t.y + offset.y
         )
     }
+
+    fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
+        todo!()
+    }
+
+    fn length_estimation(&self) -> usize {
+        todo!()
+    }
 }
 
 impl SvgCommand for End {
-    fn collidable(&self) -> Option<Collidable> {
-        None
-    }
-
     fn to_string(&self, _offset: &Point<f32>) -> String {
         String::from("Z")
+    }
+
+    fn append_to_string(&self, _offset: &Point<f32>, string: &mut String) {
+        string.push('Z');
+    }
+
+    fn length_estimation(&self) -> usize {
+        1
     }
 }
 

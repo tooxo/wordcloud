@@ -1,8 +1,8 @@
 use crate::common::svg_command::Line;
 use crate::types::point::Point;
-use std::ops::{Add, Sub};
 use num_traits::PrimInt;
 use quadtree_rs::area::{Area, AreaBuilder};
+use std::ops::{Add, Sub};
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct Rect<T> {
@@ -11,8 +11,8 @@ pub(crate) struct Rect<T> {
 }
 
 impl<T> Add<Rect<T>> for Rect<T>
-    where
-        T: Add<Output=T>,
+where
+    T: Add<Output = T>,
 {
     type Output = Self;
 
@@ -25,8 +25,8 @@ impl<T> Add<Rect<T>> for Rect<T>
 }
 
 impl<T> Add<Point<T>> for Rect<T>
-    where
-        T: Add<Output=T> + Copy,
+where
+    T: Add<Output = T> + Copy,
 {
     type Output = Rect<T>;
 
@@ -39,8 +39,8 @@ impl<T> Add<Point<T>> for Rect<T>
 }
 
 impl<T> Sub<Rect<T>> for Rect<T>
-    where
-        T: Sub<Output=T>,
+where
+    T: Sub<Output = T>,
 {
     type Output = Self;
 
@@ -53,8 +53,8 @@ impl<T> Sub<Rect<T>> for Rect<T>
 }
 
 impl<T> Default for Rect<T>
-    where
-        T: Default,
+where
+    T: Default,
 {
     fn default() -> Self {
         Rect {
@@ -65,8 +65,8 @@ impl<T> Default for Rect<T>
 }
 
 impl<T> Rect<T>
-    where
-        T: PartialOrd,
+where
+    T: PartialOrd,
 {
     pub(crate) fn overlaps(&self, other: &Rect<T>) -> bool {
         !(self.max.x < other.min.x
@@ -83,7 +83,10 @@ impl<T> Rect<T>
     }
 
     pub(crate) fn contains_point(&self, other: &Point<T>) -> bool {
-        self.min.x <= other.x && self.max.x >= other.x && self.min.y <= other.y && self.max.y >= other.y
+        self.min.x <= other.x
+            && self.max.x >= other.x
+            && self.min.y <= other.y
+            && self.max.y >= other.y
     }
 
     pub(crate) fn intersects(&self, other: &Line<T>) -> bool {
@@ -102,8 +105,8 @@ impl<T> Rect<T>
     }
 
     pub(crate) fn normalize(&mut self)
-        where
-            T: PartialOrd + Copy,
+    where
+        T: PartialOrd + Copy,
     {
         let min_x = if self.min.x <= self.max.x {
             self.min.x
@@ -131,8 +134,8 @@ impl<T> Rect<T>
     }
 
     pub(crate) fn extend(&self, thickness: T) -> Self
-        where
-            T: Copy + PartialOrd + Sub<Output=T> + Add<Output=T>,
+    where
+        T: Copy + PartialOrd + Sub<Output = T> + Add<Output = T>,
     {
         let mut extended = *self;
         if self.is_normal() {
@@ -140,49 +143,43 @@ impl<T> Rect<T>
         }
         extended.min = extended.min
             - Point {
-            x: thickness,
-            y: thickness,
-        };
+                x: thickness,
+                y: thickness,
+            };
         extended.max = extended.max
             + Point {
-            x: thickness,
-            y: thickness,
-        };
+                x: thickness,
+                y: thickness,
+            };
 
         extended
     }
 
-    pub(crate) fn combine_rects(&self, other: &Rect<T>) -> Option<Rect<T>> where
-        T: Copy + Sub<Output=T> {
+    pub(crate) fn combine_rects(&self, other: &Rect<T>) -> Option<Rect<T>>
+    where
+        T: Copy + Sub<Output = T>,
+    {
         if self.contains(other) {
-            return Some(
-                *self
-            );
+            return Some(*self);
         }
         if other.contains(self) {
-            return Some(
-                *other
-            );
+            return Some(*other);
         }
 
         if self.overlaps(other) {
             // check overlap cases
             if self.min.x == other.min.x && self.width() == other.width() {
-                return Some(
-                    Rect {
-                        min: self.min.min(&other.min),
-                        max: self.max.max(&other.max),
-                    }
-                );
+                return Some(Rect {
+                    min: self.min.min(&other.min),
+                    max: self.max.max(&other.max),
+                });
             }
 
             if self.min.y == other.min.y && self.height() == other.height() {
-                return Some(
-                    Rect {
-                        min: self.min.min(&other.min),
-                        max: self.max.max(&other.max),
-                    }
-                );
+                return Some(Rect {
+                    min: self.min.min(&other.min),
+                    max: self.max.max(&other.max),
+                });
             }
         }
 
@@ -193,8 +190,8 @@ impl<T> Rect<T>
 }
 
 impl<T> Rect<T>
-    where
-        T: Copy + Sub<Output=T>,
+where
+    T: Copy + Sub<Output = T>,
 {
     pub(crate) fn width(&self) -> T {
         self.max.x - self.min.x
@@ -205,8 +202,10 @@ impl<T> Rect<T>
     }
 }
 
-
-impl<T> From<&quadtree_rs::area::Area<T>> for Rect<T> where T: PrimInt + Default {
+impl<T> From<&quadtree_rs::area::Area<T>> for Rect<T>
+where
+    T: PrimInt + Default,
+{
     fn from(value: &Area<T>) -> Self {
         Rect {
             min: Point {
@@ -221,18 +220,17 @@ impl<T> From<&quadtree_rs::area::Area<T>> for Rect<T> where T: PrimInt + Default
     }
 }
 
-impl <T> From<&Rect<T>> for quadtree_rs::area::Area<T> where T: PrimInt + Default {
+impl<T> From<&Rect<T>> for quadtree_rs::area::Area<T>
+where
+    T: PrimInt + Default,
+{
     fn from(value: &Rect<T>) -> Self {
         AreaBuilder::default()
-            .anchor(
-                quadtree_rs::point::Point {
-                    x: value.min.x,
-                    y: value.min.y
-                }
-            )
-            .dimensions(
-                (value.width(), value.height())
-            )
+            .anchor(quadtree_rs::point::Point {
+                x: value.min.x,
+                y: value.min.y,
+            })
+            .dimensions((value.width(), value.height()))
             .build()
             .unwrap()
     }

@@ -1,9 +1,9 @@
-use WordCloudRust::{filtering, io};
-use WordCloudRust::filtering::clean;
-use WordCloudRust::rank::rank::RankedWords;
 use rayon::iter::ParallelIterator;
 use rayon::prelude::ParallelString;
 use WordCloudRust::cloud::create_image;
+use WordCloudRust::filtering::clean;
+use WordCloudRust::rank::rank::RankedWords;
+use WordCloudRust::{filtering, io};
 
 fn main() {
     /*let sw = filtering::stop_words::StopWords::from_file("test");

@@ -1,5 +1,3 @@
-extern crate trie_rs;
-
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
@@ -46,12 +44,12 @@ impl RankedWords {
         let mut hs: HashMap<String, usize> = HashMap::new();
         for s in v {
             let f = hs.get(&s);
-            hs.insert(s, *f.unwrap_or_else(|| &0) + 1);
+            hs.insert(s, *f.unwrap_or(&0) + 1);
         }
 
         let mut n = hs
             .into_par_iter()
-            .map(|c| (String::from(c.0), c.1))
+            .map(|c| (c.0, c.1))
             .map(|k| Word {
                 content: k.0,
                 count: k.1,

@@ -10,15 +10,13 @@ name = "wordcloud"
 path = "src/main.rs"
 
 [dependencies]
-trie-rs = "0.1.1"
 rayon = "1.6.1"
 svg = "0.13.0"
-# rusttype = "0.9.3"
 image = "0.24.5"
 edge-detection = "0.2.6"
 rand = { version = "0.8.5", features = ["small_rng"] }
 parking_lot = "0.12.1"
-# quadtree_rs = "0.1.2"
-quadtree_rs = { git = "https://github.com/tooxo/quadtree.git" }
+quadtree_rs = { git = "https://github.com/tooxo/quadtree.git", branch = "beta" }
 num-traits = "0.2.15"
 swash = "0.1.6"
+ryu = "1.0.13"

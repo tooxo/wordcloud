@@ -1,10 +1,10 @@
-use std::fs::create_dir;
 use crate::cloud::word::Word;
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
 use parking_lot::Mutex;
 use quadtree_rs::area::{Area, AreaBuilder};
+use std::fs::create_dir;
 
 use quadtree_rs::Quadtree;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
@@ -13,19 +13,20 @@ use rayon::prelude::IntoParallelIterator;
 
 use std::sync::Arc;
 
-use svg::node::element::{Path, Rectangle};
+use crate::image::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string};
+use image::imageops;
+use image::imageops::grayscale;
+use image::GenericImageView;
+use quadtree_rs::entry::Entry;
+use std::thread::available_parallelism;
+use svg::node::element::Path;
 use svg::{Document, Node};
 use swash::FontRef;
-use std::thread::available_parallelism;
-use image::imageops;
-use image::GenericImageView;
-use image::imageops::grayscale;
-use quadtree_rs::entry::Entry;
-use crate::image::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string};
-use svg::node::element::Text;
-use crate::io::debug::{debug_background_collision, debug_background_on_result, debug_collidables, debug_text};
-use crate::types::rotation::Rotation::Ninety;
 
+use crate::common::font::Font;
+use crate::io::debug::{
+    debug_background_collision, debug_background_on_result, debug_collidables, debug_text,
+};
 
 pub(crate) mod letter;
 pub(crate) mod word;
@@ -39,27 +40,24 @@ struct Inp {
 
 pub fn create_image() {
     let area_a = AreaBuilder::default()
-        .anchor(
-            (340, 991).into()
-        )
-        .dimensions(
-            (5, 5)
-        ).build().unwrap();
+        .anchor((340, 991).into())
+        .dimensions((5, 5))
+        .build()
+        .unwrap();
     let area_b = AreaBuilder::default()
-        .anchor(
-            (340, 991).into()
-        )
-        .dimensions(
-            (7, 5)
-        ).build().unwrap();
+        .anchor((340, 991).into())
+        .dimensions((7, 5))
+        .build()
+        .unwrap();
 
-
-    assert!(Rect::from(&area_a).combine_rects(&Rect::from(&area_b)).is_some());
+    assert!(Rect::from(&area_a)
+        .combine_rects(&Rect::from(&area_b))
+        .is_some());
 
     let font_bts = include_bytes!("../../Lato-Regular.ttf") as &[u8];
     let test_image = include_bytes!("../../drake-nothing-was-the-same-148495.jpg") as &[u8];
 
-    let random = SmallRng::from_entropy();
+    let random = SmallRng::from_seed([1; 32]);
     let random_arc = Arc::new(Mutex::new(random));
 
     let mut inp: Vec<Inp> = Vec::new();
@@ -270,7 +268,7 @@ pub fn create_image() {
 
     let mut lock = random_arc.lock();
 
-    for _ in 0..1 {
+    for _ in 0..10 {
         inp.push(Inp {
             text: words[lock.gen_range(0..words.len())].parse().unwrap(),
             scale: lock.gen_range(80..100) as f32 * mult,
@@ -286,7 +284,7 @@ pub fn create_image() {
         });
     }
 
-    for _ in 0..0 {
+    for _ in 0..1000 {
         inp.push(Inp {
             text: words[lock.gen_range(0..words.len())].parse().unwrap(),
             scale: lock.gen_range(5..20) as f32 * mult,
@@ -294,14 +292,13 @@ pub fn create_image() {
         });
     }
 
-    for _ in 0..0 {
+    for _ in 0..1000 {
         inp.push(Inp {
             text: words[lock.gen_range(0..words.len())].parse().unwrap(),
             scale: lock.gen_range(5..20) as f32 * mult,
             rotation: Rotation::Ninety,
         });
     }
-
     drop(lock);
 
     inp.sort_by(|x, y| y.scale.total_cmp(&x.scale));
@@ -325,12 +322,15 @@ pub fn create_image() {
     let depth = ((width as f32 / quadtree_divisor) as f64).log2() / 2.0_f64.log2();
     let mut quad_tree: Quadtree<u64, Word> = Quadtree::new(depth.ceil() as usize);
 
-
     const RESIZE_FACTOR: u32 = 1;
 
     let image = image::load_from_memory(test_image).expect("image load failed");
     let image_same_size_as_input = image.resize(width, width, imageops::FilterType::Nearest);
-    let resized = image.resize(image.width() / RESIZE_FACTOR, image.height() / RESIZE_FACTOR, imageops::FilterType::Nearest);
+    let resized = image.resize(
+        image.width() / RESIZE_FACTOR,
+        image.height() / RESIZE_FACTOR,
+        imageops::FilterType::Nearest,
+    );
     let greyed = grayscale(&resized);
     let detection = canny_algorithm(&greyed, 1.5);
     let detected_image = detection.as_image();
@@ -345,24 +345,29 @@ pub fn create_image() {
         if col.0[0] != 0 || col.0[1] != 0 || col.0[2] != 0 {
             let (pos_x, pos_y) = (
                 f32::max(x as f32 * multiplier / quadtree_divisor - 1., 0.),
-                f32::max(y as f32 * multiplier / quadtree_divisor - 1., 0.)
+                f32::max(y as f32 * multiplier / quadtree_divisor - 1., 0.),
             );
 
             let search_area = AreaBuilder::default()
-                .anchor(
-                    (pos_x as u64, pos_y as u64).into()
-                )
-                .dimensions(
-                    ((4. * multiplier / quadtree_divisor) as u64, (4. * multiplier / quadtree_divisor) as u64)
-                ).build().unwrap();
+                .anchor((pos_x as u64, pos_y as u64).into())
+                .dimensions((
+                    (4. * multiplier / quadtree_divisor) as u64,
+                    (4. * multiplier / quadtree_divisor) as u64,
+                ))
+                .build()
+                .unwrap();
 
             let insert_area = AreaBuilder::default()
                 .anchor(
-                    ((x as f32 * multiplier / quadtree_divisor) as u64, (y as f32 * multiplier / quadtree_divisor) as u64).into()
+                    (
+                        (x as f32 * multiplier / quadtree_divisor) as u64,
+                        (y as f32 * multiplier / quadtree_divisor) as u64,
+                    )
+                        .into(),
                 )
-                .dimensions(
-                    ((1.) as u64, (1.) as u64)
-                ).build().unwrap();
+                .dimensions(((1.) as u64, (1.) as u64))
+                .build()
+                .unwrap();
 
             let other = quadtree_boundaries.query(search_area).next();
             if let Some(o) = other {
@@ -370,25 +375,17 @@ pub fn create_image() {
                 if let Some(com) = comb {
                     let val = *o.value_ref();
                     quadtree_boundaries.delete_by_handle(o.handle());
-                    quadtree_boundaries.insert(
-                        Area::from(&com),
-                        val + 1,
-                    );
+                    quadtree_boundaries.insert(Area::from(&com), val + 1);
                     continue;
                 } else {
                     layover += 1;
                 }
             }
-            quadtree_boundaries
-                .insert(
-                    insert_area, 0,
-                );
+            quadtree_boundaries.insert(insert_area, 0);
         }
     }
 
-    dbg!(
-        quadtree_boundaries.len(), layover
-    );
+    dbg!(quadtree_boundaries.len(), layover);
 
     let visible_space = Rect {
         min: Point { x: 0.0, y: 0.0 },
@@ -398,7 +395,8 @@ pub fn create_image() {
         },
     };
 
-    let font = FontRef::from_index(font_bts, 0).unwrap();
+    let font_ref = FontRef::from_index(font_bts, 0).unwrap();
+    let font = Font::new(font_ref);
 
     let processing_slices = match available_parallelism() {
         Ok(par) => usize::from(par),
@@ -415,30 +413,30 @@ pub fn create_image() {
 
     let words = slices
         .into_par_iter()
-        .map(|inps|
-            inps
-                .iter()
-                .map(|x|
-                    {
-                        let mut locked = random_arc.lock();
-                        let left_offs = locked.gen_range(0.0..width as f32);
-                        let top_offs = locked.gen_range(0.0..width as f32);
-                        drop(locked);
-                        Word::build_swash2(
-                            &x.text,
-                            font,
-                            x.scale,
-                            Point {
-                                x: left_offs,
-                                y: top_offs,
-                            },
-                            x.rotation,
-                        )
-                    }
+        .map(|inps| {
+            let fnt = font.clone();
+            let cl = random_arc.clone();
+            inps.iter().map(move |x| {
+                let mut locked = cl.lock();
+                let left_offs = locked.gen_range(0.0..width as f32);
+                let top_offs = locked.gen_range(0.0..width as f32);
+                drop(locked);
+                Word::build(
+                    &x.text,
+                    fnt.clone(),
+                    x.scale,
+                    Point {
+                        x: left_offs,
+                        y: top_offs,
+                    },
+                    x.rotation,
                 )
-        )
+            })
+        })
         .flatten_iter()
         .collect::<Vec<Word>>();
+
+    let mut comparisons = 0usize;
 
     for mut word in words {
         let mut theta = 0.0_f64;
@@ -450,8 +448,10 @@ pub fn create_image() {
 
                 let search_region = AreaBuilder::default()
                     .anchor(quadtree_rs::point::Point {
-                        x: f32::max((word.bounding_box.min.x / quadtree_divisor).ceil() - 1., 0.) as u64,
-                        y: f32::max((word.bounding_box.min.y / quadtree_divisor).ceil() - 1., 0.) as u64,
+                        x: f32::max((word.bounding_box.min.x / quadtree_divisor).ceil() - 1., 0.)
+                            as u64,
+                        y: f32::max((word.bounding_box.min.y / quadtree_divisor).ceil() - 1., 0.)
+                            as u64,
                     })
                     .dimensions((
                         (word.bounding_box.width() / quadtree_divisor).ceil() as u64 + 2,
@@ -460,33 +460,36 @@ pub fn create_image() {
                     .build()
                     .unwrap();
 
-                let insert_region =
-                    AreaBuilder::default()
-                        .anchor(
-                            (
-                                (word.bounding_box.min.x / quadtree_divisor).ceil() as u64,
-                                (word.bounding_box.min.y / quadtree_divisor).ceil() as u64
-                            ).into()
+                let insert_region = AreaBuilder::default()
+                    .anchor(
+                        (
+                            (word.bounding_box.min.x / quadtree_divisor).ceil() as u64,
+                            (word.bounding_box.min.y / quadtree_divisor).ceil() as u64,
                         )
-                        .dimensions((
-                            (word.bounding_box.width() / quadtree_divisor).ceil() as u64,
-                            (word.bounding_box.height() / quadtree_divisor).ceil() as u64,
-                        ))
-                        .build()
-                        .unwrap();
-
-                let boundary_region = AreaBuilder::default()
-                    .anchor(quadtree_rs::point::Point {
-                        x: (word.bounding_box.min.x / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
-                        y: (word.bounding_box.min.y / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
-                    })
+                            .into(),
+                    )
                     .dimensions((
-                        (word.bounding_box.width() / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
-                        (word.bounding_box.height() / RESIZE_FACTOR as f32 / quadtree_divisor).ceil() as u64,
+                        (word.bounding_box.width() / quadtree_divisor).ceil() as u64,
+                        (word.bounding_box.height() / quadtree_divisor).ceil() as u64,
                     ))
                     .build()
                     .unwrap();
 
+                let boundary_region = AreaBuilder::default()
+                    .anchor(quadtree_rs::point::Point {
+                        x: (word.bounding_box.min.x / RESIZE_FACTOR as f32 / quadtree_divisor)
+                            .ceil() as u64,
+                        y: (word.bounding_box.min.y / RESIZE_FACTOR as f32 / quadtree_divisor)
+                            .ceil() as u64,
+                    })
+                    .dimensions((
+                        (word.bounding_box.width() / RESIZE_FACTOR as f32 / quadtree_divisor).ceil()
+                            as u64,
+                        (word.bounding_box.height() / RESIZE_FACTOR as f32 / quadtree_divisor)
+                            .ceil() as u64,
+                    ))
+                    .build()
+                    .unwrap();
 
                 if quadtree_boundaries.query(boundary_region).next().is_some() {
                     intersected = true;
@@ -557,9 +560,9 @@ pub fn create_image() {
             if iters % 25 == 0 {
                 // dbg!("resizing");
 
-                word = Word::build_swash2(
+                word = Word::build(
                     word.text.as_str(),
-                    font,
+                    font.clone(),
                     word.scale - 5.,
                     word.offset,
                     word.rotation,
@@ -588,43 +591,50 @@ pub fn create_image() {
 
     let doc_mutex = Arc::new(Mutex::new(document));
 
-    sliced
-        .par_iter()
-        .for_each(
-            |x| {
-                for word in *x {
-                    let integer_rect = Rect {
-                        min: Point {
-                            x: word.bounding_box.min.x as u32,
-                            y: word.bounding_box.min.y as u32,
-                        },
-                        max: Point {
-                            x: word.bounding_box.max.x as u32,
-                            y: word.bounding_box.max.y as u32,
-                        },
-                    };
-                    let avg_color = average_color_for_rect(&image_same_size_as_input, &integer_rect);
-                    let p = Path::new()
-                        .set("d", word.d())
-                        .set("stoke", "none")
-                        .set("fill", color_to_rgb_string(&avg_color));
-                    let _s = p.to_string();
-                    {
-                        doc_mutex.lock().append(p);
-                    }
-                }
+    sliced.par_iter().for_each(|x| {
+        for word in *x {
+            let integer_rect = Rect {
+                min: Point {
+                    x: word.bounding_box.min.x as u32,
+                    y: word.bounding_box.min.y as u32,
+                },
+                max: Point {
+                    x: word.bounding_box.max.x as u32,
+                    y: word.bounding_box.max.y as u32,
+                },
+            };
+            let avg_color = average_color_for_rect(&image_same_size_as_input, &integer_rect);
+            let p = Path::new()
+                .set("d", word.d())
+                .set("stoke", "none")
+                .set("fill", color_to_rgb_string(&avg_color));
+            let _s = p.to_string();
+            {
+                doc_mutex.lock().append(p);
             }
-        );
+        }
+    });
     svg::save("created.svg", &doc_mutex.lock().clone()).unwrap();
 
-    if true {
+    dbg!(comparisons / quad_tree.len());
+
+    if false {
         println!("Dumping Debug Files");
         if !std::path::Path::new("debug").is_dir() {
             create_dir("debug").unwrap();
         }
-        debug_background_collision("debug/background_collision.svg", quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>(), quadtree_divisor);
+        debug_background_collision(
+            "debug/background_collision.svg",
+            quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>(),
+            quadtree_divisor,
+        );
         debug_collidables("debug/collidables.svg", &entries);
         debug_text("debug/text.svg", &entries);
-        debug_background_on_result("debug/text_on_background.svg", &entries, &quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>(), quadtree_divisor);
+        debug_background_on_result(
+            "debug/text_on_background.svg",
+            &entries,
+            &quadtree_boundaries.iter().collect::<Vec<&Entry<u64, u8>>>(),
+            quadtree_divisor,
+        );
     }
 }

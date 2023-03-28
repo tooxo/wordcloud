@@ -1,22 +1,25 @@
+use crate::cloud::word::Word;
 use quadtree_rs::entry::Entry;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
-use svg::{Document, Node};
 use svg::node::element::{Path, Rectangle, Text};
-use crate::cloud::word::Word;
-use crate::types::point::Point;
-use crate::types::rect::Rect;
+use svg::{Document, Node};
 
-
-pub(crate) fn debug_background_collision(filename: &str, qt_entries: Vec<&Entry<u64, u8>>, quadtree_divisor: f32) {
+pub(crate) fn debug_background_collision(
+    filename: &str,
+    qt_entries: Vec<&Entry<u64, u8>>,
+    quadtree_divisor: f32,
+) {
     let mut random = SmallRng::from_entropy();
     let mut document = Document::new()
         .set("viewBox", (0, 0, 1000, 1000))
         .set("height", 1000)
         .set("width", 1000);
 
-
-    let colors = vec!["black", "gray", "silver", "maroon", "red", "purple", "fushsia", "green", "lime", "olive", "yellow", "navy", "blue", "teal", "aqua"];
+    let colors = vec![
+        "black", "gray", "silver", "maroon", "red", "purple", "fushsia", "green", "lime", "olive",
+        "yellow", "navy", "blue", "teal", "aqua",
+    ];
     for bound in qt_entries {
         let random_color = colors[random.gen_range(0..colors.len())];
 
@@ -79,7 +82,6 @@ pub(crate) fn debug_text(filename: &str, entries: &Vec<&Entry<u64, Word>>) {
         .set("height", 1000)
         .set("width", 1000);
 
-
     for entry in entries {
         let word = entry.value_ref();
         let mut t = Text::new()
@@ -89,9 +91,7 @@ pub(crate) fn debug_text(filename: &str, entries: &Vec<&Entry<u64, Word>>) {
         if word.rotation == crate::types::rotation::Rotation::Ninety {
             t.assign("style", "transform: rotate(90deg); transform-origin: unset");
         }
-        t.append(
-            svg::node::Text::new(&word.text)
-        );
+        t.append(svg::node::Text::new(&word.text));
 
         document.append(t);
     }
@@ -99,7 +99,12 @@ pub(crate) fn debug_text(filename: &str, entries: &Vec<&Entry<u64, Word>>) {
     svg::save(filename, &document).unwrap();
 }
 
-pub(crate) fn debug_background_on_result(filename: &str, entries: &Vec<&Entry<u64, Word>>, boundaries: &Vec<&Entry<u64, u8>>, quadtree_divisor: f32) {
+pub(crate) fn debug_background_on_result(
+    filename: &str,
+    entries: &Vec<&Entry<u64, Word>>,
+    boundaries: &Vec<&Entry<u64, u8>>,
+    quadtree_divisor: f32,
+) {
     let mut document = Document::new()
         .set("viewBox", (0, 0, 1000, 1000))
         .set("height", 1000)
@@ -125,6 +130,3 @@ pub(crate) fn debug_background_on_result(filename: &str, entries: &Vec<&Entry<u6
 
     svg::save(filename, &document).unwrap();
 }
-
-
-

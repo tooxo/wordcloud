@@ -71,7 +71,11 @@ impl Letter {
 
     pub(crate) fn d(&self, global_off: &Point<f32>) -> String {
         let off: Point<f32> = self.rotation.rotate_point(self.offset) + *global_off;
-        String::from_iter(self.state.iter().map(|x| x.to_string(&off)))
+        let mut d = String::with_capacity(self.state.iter().map(|x| x.length_estimation()).sum());
+        for x in &self.state {
+            x.append_to_string(&off, &mut d);
+        }
+        d
     }
 
     pub(crate) fn simplify(&mut self) {

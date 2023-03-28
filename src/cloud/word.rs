@@ -1,13 +1,12 @@
+use std::ops::Deref;
 use swash::scale::outline::Outline;
-use swash::scale::{ScaleContext};
 use swash::shape::Direction::LeftToRight;
-use swash::shape::ShapeContext;
 use swash::text::Script::Latin;
+use swash::zeno::Command;
 use swash::zeno::PathData;
-use swash::zeno::{Command};
-use swash::FontRef;
 
 use crate::cloud::letter::Letter;
+use crate::common::font::Font;
 use crate::common::path_collision::collide_line_line;
 use crate::common::svg_command::{End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
@@ -24,66 +23,17 @@ pub(crate) struct Word {
     pub(crate) rotation: Rotation,
 }
 
-impl<'font> Word {
-    /*pub(crate) fn build(
+impl Word {
+    pub(crate) fn build(
         text: &str,
-        font: &'font Font<'font>,
-        scale: Scale,
-        start: Point<f32>,
-        rotation: Rotation,
-    ) -> Word {
-        let gl = font.layout(text, scale, rusttype::Point::default());
-        let glyphs = gl
-            .into_iter()
-            .enumerate()
-            .map(|(i, x)| {
-                let offset = Point::from(&x.position());
-                let bbox = x.pixel_bounding_box().unwrap();
-                let mut letter = Letter::new(
-                    text.chars().collect::<Vec<char>>()[i],
-                    Rect {
-                        min: Point {
-                            x: bbox.min.x as f32,
-                            y: bbox.min.y as f32,
-                        },
-                        max: Point {
-                            x: bbox.max.x as f32,
-                            y: bbox.max.y as f32,
-                        },
-                    },
-                    offset,
-                    rotation,
-                );
-                x.unpositioned().build_outline(&mut letter);
-                letter.simplify();
-                letter
-            })
-            .collect::<Vec<Letter>>();
-
-        let mut w = Word {
-            text: String::from(text),
-            glyphs,
-            offset: start,
-            bounding_box: Rect::default(),
-            scale,
-            rotation,
-        };
-        w.recalculate_bounding_box();
-
-        w
-    }*/
-
-    pub(crate) fn build_swash2(
-        text: &str,
-        font: FontRef,
+        font: Font,
         font_size: f32,
         start: Point<f32>,
         rotation: Rotation,
     ) -> Word {
-        let mut context = ShapeContext::new();
-        let mut scale_context = ScaleContext::new();
-        let mut shaper = context
-            .builder(font)
+        let mut shape = font.shape().lock();
+        let mut shaper = shape
+            .builder(*font.re().deref())
             .script(Latin)
             .size(font_size)
             .direction(LeftToRight)
@@ -91,7 +41,8 @@ impl<'font> Word {
             .insert_dotted_circles(true)
             .build();
 
-        let mut scaler = scale_context.builder(font).size(font_size).build();
+        let mut scale = font.scale().lock();
+        let mut scaler = scale.builder(*font.re().deref()).size(font_size).build();
 
         shaper.add_str(text);
 
@@ -152,6 +103,9 @@ impl<'font> Word {
             );
         });
 
+        drop(scale);
+        drop(shape);
+
         let mut w = Word {
             text: String::from(text),
             glyphs: letters,
@@ -179,16 +133,28 @@ impl<'font> Word {
             for command in &mut glyph.state {
                 *command = match &command {
                     SVGPathCommand::Move(p) => SVGPathCommand::Move(Move {
-                        position: glyph.rotation.rotate_point(height_pt.sub_ly(&glyph.rotation.rotate_point_back(&p.position))),
+                        position: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&p.position)),
+                        ),
                     }),
                     SVGPathCommand::Line(p) => SVGPathCommand::Line(Line {
-                        start: glyph.rotation.rotate_point(height_pt.sub_ly(&glyph.rotation.rotate_point_back(&p.start))),
-                        end: glyph.rotation.rotate_point(height_pt.sub_ly(&glyph.rotation.rotate_point_back(&p.end))),
+                        start: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&p.start)),
+                        ),
+                        end: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&p.end)),
+                        ),
                     }),
                     SVGPathCommand::QuadCurve(q) => SVGPathCommand::QuadCurve(QuadCurve {
-                        p_o: glyph.rotation.rotate_point(height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.p_o))),
-                        t: glyph.rotation.rotate_point(height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.t))),
-                        t1: glyph.rotation.rotate_point(height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.t1))),
+                        p_o: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.p_o)),
+                        ),
+                        t: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.t)),
+                        ),
+                        t1: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.t1)),
+                        ),
                     }),
                     SVGPathCommand::Curve(_) => unimplemented!(),
                     SVGPathCommand::End(_) => SVGPathCommand::End(End {}),
@@ -252,7 +218,7 @@ impl<'font> Word {
         self.recalculate_bounding_box();
     }
 
-    fn collidables(&self) -> impl Iterator<Item=Line<f32>> + '_ {
+    fn collidables(&self) -> impl Iterator<Item = Line<f32>> + '_ {
         self.glyphs
             .iter()
             .flat_map(|x| x.absolute_collidables(&self.rotation, self.offset))

@@ -42,7 +42,7 @@ impl Rotation {
             Rotation::TwoSeventy => Point {
                 x: point.y,
                 y: -point.x,
-            }
+            },
         }
     }
 

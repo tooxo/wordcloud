@@ -251,7 +251,7 @@ impl SvgCommand for Curve {
         )
     }
 
-    fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
+    fn append_to_string(&self, _offset: &Point<f32>, _string: &mut String) {
         todo!()
     }
 

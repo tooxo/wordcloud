@@ -7,7 +7,7 @@ use svg::{Document, Node};
 
 pub(crate) fn debug_background_collision(
     filename: &str,
-    qt_entries: Vec<&Entry<u64, u8>>,
+    qt_entries: Vec<&Entry<u64, ()>>,
     quadtree_divisor: f32,
 ) {
     let mut random = SmallRng::from_entropy();
@@ -30,7 +30,6 @@ pub(crate) fn debug_background_collision(
             .set("height", bound.area().height() as f32 * quadtree_divisor)
             .set("stroke", "black")
             .set("stroke-width", "1px")
-            .set("merges", *bound.value_ref())
             .set("fill", random_color);
 
         document.append(rec);
@@ -102,7 +101,7 @@ pub(crate) fn debug_text(filename: &str, entries: &Vec<&Entry<u64, Word>>) {
 pub(crate) fn debug_background_on_result(
     filename: &str,
     entries: &Vec<&Entry<u64, Word>>,
-    boundaries: &Vec<&Entry<u64, u8>>,
+    boundaries: &Vec<&Entry<u64, ()>>,
     quadtree_divisor: f32,
 ) {
     let mut document = Document::new()

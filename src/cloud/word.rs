@@ -13,6 +13,12 @@ use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
 
+pub(crate) struct Inp {
+    pub(crate) text: String,
+    pub(crate) scale: f32,
+    pub(crate) rotation: Rotation,
+}
+
 pub(crate) struct Word {
     pub(crate) text: String,
     pub(crate) glyphs: Vec<Letter>,

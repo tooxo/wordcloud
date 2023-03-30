@@ -2,8 +2,21 @@ use edge_detection::Detection;
 
 use crate::types::rect::Rect;
 use image::{DynamicImage, GenericImageView, GrayImage, Rgba};
+use crate::types::point::Point;
 
 pub(crate) type Dimensions = Rect<usize>;
+
+impl Dimensions {
+    pub(crate) fn from_wh(width: usize, height: usize) -> Self {
+        Rect {
+            min: Point::default(),
+            max: Point {
+                x: width,
+                y: height,
+            },
+        }
+    }
+}
 
 pub(crate) fn canny_algorithm(image: &GrayImage, sigma: f32) -> Detection {
     let det = edge_detection::canny(image.clone(), sigma, 0.3, 0.05);
@@ -13,8 +26,10 @@ pub(crate) fn canny_algorithm(image: &GrayImage, sigma: f32) -> Detection {
     det
 }
 
-pub(crate) fn average_color_for_rect(image: &DynamicImage, rect: &Rect<u32>) -> Rgba<u8> {
-    assert!(image.width() >= rect.max.x && image.height() >= rect.max.y);
+pub(crate) fn average_color_for_rect(image: &DynamicImage, rect: &Rect<u32>, default: Rgba<u8>) -> Rgba<u8> {
+    if rect.max.x > image.width() || rect.max.y > image.height() {
+        return default;
+    }
     let colors: Vec<[u8; 4]> = (rect.min.x..rect.max.x)
         .flat_map(|x| {
             (rect.min.y..rect.max.y)
@@ -39,7 +54,7 @@ pub(crate) fn average_color_for_rect(image: &DynamicImage, rect: &Rect<u32>) -> 
             summed_alpha as u8,
         ])
     } else {
-        Rgba([0, 0, 0, 0])
+        default
     }
 }
 

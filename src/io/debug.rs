@@ -4,17 +4,19 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use svg::node::element::{Path, Rectangle, Text};
 use svg::{Document, Node};
+use crate::image::image::Dimensions;
 
 pub(crate) fn debug_background_collision(
     filename: &str,
     qt_entries: Vec<&Entry<u64, ()>>,
     quadtree_divisor: f32,
+    dimensions: Dimensions
 ) {
     let mut random = SmallRng::from_entropy();
     let mut document = Document::new()
-        .set("viewBox", (0, 0, 1000, 1000))
-        .set("height", 1000)
-        .set("width", 1000);
+        .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))
+        .set("height", dimensions.height())
+        .set("width", dimensions.width());
 
     let colors = vec![
         "black", "gray", "silver", "maroon", "red", "purple", "fushsia", "green", "lime", "olive",
@@ -38,11 +40,11 @@ pub(crate) fn debug_background_collision(
     svg::save(filename, &document).unwrap();
 }
 
-pub(crate) fn debug_collidables(filename: &str, qt_entries: &Vec<&Entry<u64, Word>>) {
+pub(crate) fn debug_collidables(filename: &str, qt_entries: &Vec<&Entry<u64, Word>>, dimensions: Dimensions) {
     let mut document = Document::new()
-        .set("viewBox", (0, 0, 1000, 1000))
-        .set("height", 1000)
-        .set("width", 1000);
+        .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))
+        .set("height", dimensions.height())
+        .set("width", dimensions.width());
 
     for x in qt_entries {
         let w = x.value_ref();
@@ -75,11 +77,11 @@ pub(crate) fn debug_collidables(filename: &str, qt_entries: &Vec<&Entry<u64, Wor
     svg::save(filename, &document).unwrap();
 }
 
-pub(crate) fn debug_text(filename: &str, entries: &Vec<&Entry<u64, Word>>) {
+pub(crate) fn debug_text(filename: &str, entries: &Vec<&Entry<u64, Word>>, dimensions: Dimensions) {
     let mut document = Document::new()
-        .set("viewBox", (0, 0, 1000, 1000))
-        .set("height", 1000)
-        .set("width", 1000);
+        .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))
+        .set("height", dimensions.height())
+        .set("width", dimensions.width());
 
     for entry in entries {
         let word = entry.value_ref();
@@ -103,11 +105,12 @@ pub(crate) fn debug_background_on_result(
     entries: &Vec<&Entry<u64, Word>>,
     boundaries: &Vec<&Entry<u64, ()>>,
     quadtree_divisor: f32,
+    dimensions: Dimensions
 ) {
     let mut document = Document::new()
-        .set("viewBox", (0, 0, 1000, 1000))
-        .set("height", 1000)
-        .set("width", 1000);
+        .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))
+        .set("height", dimensions.height())
+        .set("width", dimensions.width());
 
     for bound in boundaries {
         let rec = svg::node::element::Rectangle::new()

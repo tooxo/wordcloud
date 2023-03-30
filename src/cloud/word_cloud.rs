@@ -1,14 +1,14 @@
 use crate::cloud::word::Word;
 use crate::cloud::Inp;
 use crate::common::font::Font;
-use crate::image::image::{average_color_for_rect, canny_algorithm};
+use crate::image::image::{average_color_for_rect, canny_algorithm, Dimensions};
 use crate::io::debug::{
     debug_background_collision, debug_background_on_result, debug_collidables, debug_text,
 };
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use image::imageops::grayscale;
-use image::{DynamicImage, GenericImageView};
+use image::{DynamicImage, GenericImageView, Rgba};
 use itertools::Itertools;
 use parking_lot::{Mutex, RwLock};
 use quadtree_rs::area::{Area, AreaBuilder};
@@ -22,37 +22,34 @@ use std::sync::Arc;
 use svg::node::element::Path;
 use svg::{Document, Node};
 
-fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, quadtree_divisor: f32) {
-    let mx = u32::max(image.width(), image.height());
+fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, output_image_dims: Dimensions, quadtree_divisor: f32) {
     let resize = image.resize(
-        mx,
-        mx,
-        image::imageops::Nearest,
+        (output_image_dims.width() as f32 / quadtree_divisor) as u32,
+        (output_image_dims.height() as f32 / quadtree_divisor) as u32,
+        image::imageops::FilterType::Nearest,
     );
     let grey = grayscale(&resize);
     let borders = canny_algorithm(&grey, 1.5);
     let border_image = borders.as_image();
 
-    let mut layover = 0usize;
-    let multiplier = qt.width() as f32 / border_image.width() as f32;
     for (x, y, col) in border_image.pixels() {
         if col.0[0] != 0 || col.0[1] != 0 || col.0[2] != 0 {
             let (pos_x, pos_y) = (
-                f32::max(x as f32 * multiplier - 1., 0.),
-                f32::max(y as f32 * multiplier - 1., 0.),
+                f32::max(x as f32 - 1., 0.),
+                f32::max(y as f32 - 1., 0.),
             );
 
             let search_area = AreaBuilder::default()
                 .anchor((pos_x as u64, pos_y as u64).into())
-                .dimensions(((4. * multiplier) as u64, (4. * multiplier) as u64))
+                .dimensions(((4.) as u64, (4.) as u64))
                 .build()
                 .unwrap();
 
             let insert_area = AreaBuilder::default()
                 .anchor(
                     (
-                        (x as f32 * multiplier) as u64,
-                        (y as f32 * multiplier) as u64,
+                        (x as f32) as u64,
+                        (y as f32) as u64,
                     )
                         .into(),
                 )
@@ -67,8 +64,6 @@ fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, quadtree
                     qt.delete_by_handle(o.handle());
                     qt.insert(Area::from(&com), ());
                     continue;
-                } else {
-                    layover += 1;
                 }
             }
             qt.insert(insert_area, ());
@@ -76,19 +71,18 @@ fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, quadtree
     }
 }
 
-pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &DynamicImage) {
-    const WIDTH: usize = 1000;
+pub(crate) fn create_word_cloud(dimensions: Dimensions, font: Font, inp: Vec<Inp>, background_image: &DynamicImage) {
     const QUADTREE_DIVISOR: f32 = 4.;
     const A: f64 = 0.5_f64;
     const B: f64 = 5.0f64;
 
     let random_arc = Arc::new(Mutex::new(SmallRng::from_seed([1; 32])));
 
-    let depth = ((WIDTH as f32 / QUADTREE_DIVISOR).log2() / 2.0_f32.log2()).ceil() as usize;
+    let depth = ((usize::max(dimensions.width(), dimensions.height()) as f32 / QUADTREE_DIVISOR).log2() / 2.0_f32.log2()).ceil() as usize;
     let qt_content: Quadtree<u64, Word> = Quadtree::new(depth);
     let mut qt_background: Quadtree<u64, ()> = Quadtree::new(depth);
 
-    fill_background_qt(&mut qt_background, background_image, QUADTREE_DIVISOR);
+    fill_background_qt(&mut qt_background, background_image, dimensions, QUADTREE_DIVISOR);
 
     let processing_slices = match std::thread::available_parallelism() {
         Ok(par) => usize::from(par),
@@ -110,8 +104,8 @@ pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &Dy
             let cl = random_arc.clone();
             inps.iter().map(move |x| {
                 let mut locked = cl.lock();
-                let left_offs = locked.gen_range(0.0..WIDTH as f32);
-                let top_offs = locked.gen_range(0.0..WIDTH as f32);
+                let left_offs = locked.gen_range(0.0..dimensions.width() as f32);
+                let top_offs = locked.gen_range(0.0..dimensions.height() as f32);
                 drop(locked);
                 Word::build(
                     &x.text,
@@ -131,8 +125,8 @@ pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &Dy
     let visible_space = Rect {
         min: Point { x: 0.0, y: 0.0 },
         max: Point {
-            x: WIDTH as f32,
-            y: WIDTH as f32,
+            x: dimensions.width() as f32,
+            y: dimensions.height() as f32,
         },
     };
 
@@ -234,8 +228,8 @@ pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &Dy
                 if iters % 10 == 0 && iters > 0 {
                     let mut lck = random_arc.lock();
                     let new_pos = Point {
-                        x: lck.gen_range(0.0..WIDTH as f32),
-                        y: lck.gen_range(0.0..WIDTH as f32),
+                        x: lck.gen_range(0.0..dimensions.width() as f32),
+                        y: lck.gen_range(0.0..dimensions.height() as f32),
                     };
 
                     drop(lck);
@@ -302,12 +296,12 @@ pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &Dy
 
     let doc_mutex = Arc::new(Mutex::new(
         Document::new()
-            .set("viewBox", (0, 0, 1000, 1000))
-            .set("height", 1000)
-            .set("width", 1000),
+            .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))
+            .set("height", dimensions.height())
+            .set("width", dimensions.width()),
     ));
 
-    let multiplier = background_image.width() as f64 / WIDTH as f64;
+    let multiplier = background_image.width() as f64 / usize::min(dimensions.width(), dimensions.height()) as f64;
     sliced.par_iter().for_each(|x| {
         for word in *x {
             let integer_rect = Rect {
@@ -320,7 +314,7 @@ pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &Dy
                     y: ((word.bounding_box.max.y as f64) * multiplier) as u32,
                 },
             };
-            let avg_color = average_color_for_rect(background_image, &integer_rect);
+            let avg_color = average_color_for_rect(background_image, &integer_rect, Rgba([0, 0, 0, 0]));
             let p = Path::new()
                 .set("d", word.d())
                 .set("stoke", "none")
@@ -333,7 +327,7 @@ pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &Dy
     });
     svg::save("created.svg", &doc_mutex.lock().clone()).unwrap();
 
-    if false {
+    if true {
         println!("Dumping Debug Files");
         if !std::path::Path::new("debug").is_dir() {
             std::fs::create_dir("debug").unwrap();
@@ -342,14 +336,16 @@ pub(crate) fn create_word_cloud(font: Font, inp: Vec<Inp>, background_image: &Dy
             "debug/background_collision.svg",
             qt_background.iter().collect::<Vec<&Entry<u64, ()>>>(),
             QUADTREE_DIVISOR,
+            dimensions,
         );
-        debug_collidables("debug/collidables.svg", &entries);
-        debug_text("debug/text.svg", &entries);
+        debug_collidables("debug/collidables.svg", &entries, dimensions);
+        debug_text("debug/text.svg", &entries, dimensions);
         debug_background_on_result(
             "debug/text_on_background.svg",
             &entries,
             &qt_background.iter().collect::<Vec<&Entry<u64, ()>>>(),
             QUADTREE_DIVISOR,
+            dimensions,
         );
     }
 }

@@ -14,7 +14,7 @@ use rayon::prelude::IntoParallelIterator;
 use std::sync::Arc;
 
 use crate::cloud::word_cloud::create_word_cloud;
-use crate::image::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string};
+use crate::image::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string, Dimensions};
 use image::imageops;
 use image::imageops::grayscale;
 use image::GenericImageView;
@@ -285,6 +285,7 @@ pub fn create_image() {
     inp.sort_by(|x, y| y.scale.total_cmp(&x.scale));
 
     let image = image::load_from_memory(test_image).expect("image load failed");
+    let output_dimensions = Dimensions::from_wh(1000, 2000);
 
-    create_word_cloud(font, inp, &image);
+    create_word_cloud(output_dimensions, font, inp, &image);
 }

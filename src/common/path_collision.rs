@@ -1,4 +1,4 @@
-use crate::common::svg_command::{Curve, Line, QuadCurve};
+use crate::common::svg_command::{Line, QuadCurve};
 use crate::types::point::Point;
 
 fn ccw(a: Point<f32>, b: Point<f32>, c: Point<f32>) -> bool {

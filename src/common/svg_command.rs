@@ -1,15 +1,21 @@
 use crate::types::point::Point;
 use num_traits::Zero;
 use std::f32::consts::PI;
-use std::ops::{Add, Sub};
+use std::ops::{Add, Deref, Sub};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum SVGPathCommand {
     Move(Move),
     Line(Line<f32>),
     QuadCurve(QuadCurve),
     Curve(Curve),
     End(End),
+}
+
+macro_rules! format_float {
+    ($num:expr) => {
+        format!("{:.2}", $num).deref()
+    };
 }
 
 pub(crate) trait SvgCommand {
@@ -91,19 +97,19 @@ impl<T> Parallelogram<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Move {
     pub(crate) position: Point<f32>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct QuadCurve {
     pub(crate) t1: Point<f32>,
     pub(crate) t: Point<f32>,
     pub(crate) p_o: Point<f32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Curve {
     pub(crate) t2: Point<f32>,
     pub(crate) t1: Point<f32>,
@@ -111,7 +117,7 @@ pub(crate) struct Curve {
     pub(crate) p_o: Point<f32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct End {}
 
 #[allow(dead_code)]
@@ -180,9 +186,9 @@ impl SvgCommand for Line<f32> {
 
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("L ");
-        string.push_str(ryu::Buffer::new().format_finite(self.end.x + offset.x));
+        string.push_str(format_float!(self.end.x + offset.x));
         string.push(' ');
-        string.push_str(ryu::Buffer::new().format_finite(self.end.y + offset.y))
+        string.push_str(format_float!(self.end.y + offset.y))
     }
 
     fn length_estimation(&self) -> usize {
@@ -201,9 +207,9 @@ impl SvgCommand for Move {
 
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("M ");
-        string.push_str(ryu::Buffer::new().format_finite(self.position.x + offset.x));
+        string.push_str(format_float!(self.position.x + offset.x));
         string.push(' ');
-        string.push_str(ryu::Buffer::new().format_finite(self.position.y + offset.y))
+        string.push_str(format_float!(self.position.y + offset.y))
     }
 
     fn length_estimation(&self) -> usize {
@@ -224,13 +230,13 @@ impl SvgCommand for QuadCurve {
 
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("Q ");
-        string.push_str(ryu::Buffer::new().format_finite(self.t1.x + offset.x));
+        string.push_str(format_float!(self.t1.x + offset.x));
         string.push(' ');
-        string.push_str(ryu::Buffer::new().format_finite(self.t1.y + offset.y));
-        string.push_str(", ");
-        string.push_str(ryu::Buffer::new().format_finite(self.t.x + offset.x));
+        string.push_str(format_float!(self.t1.y + offset.y));
+        string.push(',');
+        string.push_str(format_float!(self.t.x + offset.x));
         string.push(' ');
-        string.push_str(ryu::Buffer::new().format_finite(self.t.y + offset.y))
+        string.push_str(format_float!(self.t.y + offset.y))
     }
 
     fn length_estimation(&self) -> usize {

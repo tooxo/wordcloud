@@ -19,5 +19,4 @@ parking_lot = "0.12.1"
 quadtree_rs = { git = "https://github.com/tooxo/quadtree.git", branch = "beta" }
 num-traits = "0.2.15"
 swash = "0.1.6"
-ryu = "1.0.13"
 itertools = "0.10.5"

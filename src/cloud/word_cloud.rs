@@ -18,11 +18,17 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use rayon::iter::ParallelIterator;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator};
+
 use std::sync::Arc;
 use svg::node::element::Path;
 use svg::{Document, Node};
 
-fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, output_image_dims: Dimensions, quadtree_divisor: f32) {
+fn fill_background_qt(
+    qt: &mut Quadtree<u64, ()>,
+    image: &DynamicImage,
+    output_image_dims: Dimensions,
+    quadtree_divisor: f32,
+) {
     let resize = image.resize(
         (output_image_dims.width() as f32 / quadtree_divisor) as u32,
         (output_image_dims.height() as f32 / quadtree_divisor) as u32,
@@ -34,10 +40,7 @@ fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, output_i
 
     for (x, y, col) in border_image.pixels() {
         if col.0[0] != 0 || col.0[1] != 0 || col.0[2] != 0 {
-            let (pos_x, pos_y) = (
-                f32::max(x as f32 - 1., 0.),
-                f32::max(y as f32 - 1., 0.),
-            );
+            let (pos_x, pos_y) = (f32::max(x as f32 - 1., 0.), f32::max(y as f32 - 1., 0.));
 
             let search_area = AreaBuilder::default()
                 .anchor((pos_x as u64, pos_y as u64).into())
@@ -46,13 +49,7 @@ fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, output_i
                 .unwrap();
 
             let insert_area = AreaBuilder::default()
-                .anchor(
-                    (
-                        (x as f32) as u64,
-                        (y as f32) as u64,
-                    )
-                        .into(),
-                )
+                .anchor(((x as f32) as u64, (y as f32) as u64).into())
                 .dimensions(((1.) as u64, (1.) as u64))
                 .build()
                 .unwrap();
@@ -71,18 +68,31 @@ fn fill_background_qt(qt: &mut Quadtree<u64, ()>, image: &DynamicImage, output_i
     }
 }
 
-pub(crate) fn create_word_cloud(dimensions: Dimensions, font: Font, inp: Vec<Inp>, background_image: &DynamicImage) {
+pub(crate) fn create_word_cloud(
+    dimensions: Dimensions,
+    font: Font,
+    inp: Vec<Inp>,
+    background_image: &DynamicImage,
+) {
     const QUADTREE_DIVISOR: f32 = 4.;
     const A: f64 = 0.5_f64;
     const B: f64 = 5.0f64;
 
     let random_arc = Arc::new(Mutex::new(SmallRng::from_seed([1; 32])));
 
-    let depth = ((usize::max(dimensions.width(), dimensions.height()) as f32 / QUADTREE_DIVISOR).log2() / 2.0_f32.log2()).ceil() as usize;
+    let depth = ((usize::max(dimensions.width(), dimensions.height()) as f32 / QUADTREE_DIVISOR)
+        .log2()
+        / 2.0_f32.log2())
+    .ceil() as usize;
     let qt_content: Quadtree<u64, Word> = Quadtree::new(depth);
     let mut qt_background: Quadtree<u64, ()> = Quadtree::new(depth);
 
-    fill_background_qt(&mut qt_background, background_image, dimensions, QUADTREE_DIVISOR);
+    fill_background_qt(
+        &mut qt_background,
+        background_image,
+        dimensions,
+        QUADTREE_DIVISOR,
+    );
 
     let processing_slices = match std::thread::available_parallelism() {
         Ok(par) => usize::from(par),
@@ -97,7 +107,7 @@ pub(crate) fn create_word_cloud(dimensions: Dimensions, font: Font, inp: Vec<Inp
         )
         .collect::<Vec<&[Inp]>>();
 
-    let mut words = slices
+    let words = slices
         .into_par_iter()
         .map(|inps| {
             let fnt = font.clone();
@@ -131,16 +141,19 @@ pub(crate) fn create_word_cloud(dimensions: Dimensions, font: Font, inp: Vec<Inp
     };
 
     let qt_content_lock = Arc::new(RwLock::new(qt_content));
-    let chunks = words.len() / processing_slices;
-    let sliced = words
-        .into_iter()
-        .chunks(chunks)
-        .into_iter()
-        .map(|x| x.collect())
+    let chu = (0..processing_slices)
+        .map(|n| {
+            words
+                .iter()
+                .skip(n)
+                .step_by(processing_slices)
+                .cloned()
+                .collect::<Vec<Word>>()
+        })
         .collect::<Vec<Vec<Word>>>();
 
     let cloned_lock = qt_content_lock.clone();
-    sliced.into_par_iter().for_each(|words| {
+    chu.into_par_iter().for_each(|words| {
         for mut word in words {
             let mut theta = 0.0_f64;
             let mut placed = false;
@@ -301,7 +314,8 @@ pub(crate) fn create_word_cloud(dimensions: Dimensions, font: Font, inp: Vec<Inp
             .set("width", dimensions.width()),
     ));
 
-    let multiplier = background_image.width() as f64 / usize::min(dimensions.width(), dimensions.height()) as f64;
+    let multiplier = background_image.width() as f64
+        / usize::min(dimensions.width(), dimensions.height()) as f64;
     sliced.par_iter().for_each(|x| {
         for word in *x {
             let integer_rect = Rect {
@@ -314,7 +328,8 @@ pub(crate) fn create_word_cloud(dimensions: Dimensions, font: Font, inp: Vec<Inp
                     y: ((word.bounding_box.max.y as f64) * multiplier) as u32,
                 },
             };
-            let avg_color = average_color_for_rect(background_image, &integer_rect, Rgba([0, 0, 0, 0]));
+            let avg_color =
+                average_color_for_rect(background_image, &integer_rect, Rgba([0, 0, 0, 0]));
             let p = Path::new()
                 .set("d", word.d())
                 .set("stoke", "none")

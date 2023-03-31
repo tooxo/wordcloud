@@ -1,16 +1,16 @@
 use crate::cloud::word::Word;
+use crate::image::image::Dimensions;
 use quadtree_rs::entry::Entry;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use svg::node::element::{Path, Rectangle, Text};
 use svg::{Document, Node};
-use crate::image::image::Dimensions;
 
 pub(crate) fn debug_background_collision(
     filename: &str,
     qt_entries: Vec<&Entry<u64, ()>>,
     quadtree_divisor: f32,
-    dimensions: Dimensions
+    dimensions: Dimensions,
 ) {
     let mut random = SmallRng::from_entropy();
     let mut document = Document::new()
@@ -40,7 +40,11 @@ pub(crate) fn debug_background_collision(
     svg::save(filename, &document).unwrap();
 }
 
-pub(crate) fn debug_collidables(filename: &str, qt_entries: &Vec<&Entry<u64, Word>>, dimensions: Dimensions) {
+pub(crate) fn debug_collidables(
+    filename: &str,
+    qt_entries: &Vec<&Entry<u64, Word>>,
+    dimensions: Dimensions,
+) {
     let mut document = Document::new()
         .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))
         .set("height", dimensions.height())
@@ -105,7 +109,7 @@ pub(crate) fn debug_background_on_result(
     entries: &Vec<&Entry<u64, Word>>,
     boundaries: &Vec<&Entry<u64, ()>>,
     quadtree_divisor: f32,
-    dimensions: Dimensions
+    dimensions: Dimensions,
 ) {
     let mut document = Document::new()
         .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))

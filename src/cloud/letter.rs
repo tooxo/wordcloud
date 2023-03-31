@@ -4,7 +4,7 @@ use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Letter {
     pub(crate) char: char,
     pub(crate) pixel_bounding_box: Rect<f32>,

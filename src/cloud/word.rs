@@ -19,6 +19,7 @@ pub(crate) struct Inp {
     pub(crate) rotation: Rotation,
 }
 
+#[derive(Clone)]
 pub(crate) struct Word {
     pub(crate) text: String,
     pub(crate) glyphs: Vec<Letter>,

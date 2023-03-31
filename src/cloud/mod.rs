@@ -1,31 +1,14 @@
-use crate::cloud::word::{Inp, Word};
-use crate::types::point::Point;
-use crate::types::rect::Rect;
-use crate::types::rotation::Rotation;
-use parking_lot::Mutex;
-use quadtree_rs::area::{Area, AreaBuilder};
-use std::fs::create_dir;
-
-use quadtree_rs::Quadtree;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use rayon::prelude::IntoParallelIterator;
-
-use std::sync::Arc;
+use crate::cloud::word::Inp;
 
 use crate::cloud::word_cloud::create_word_cloud;
-use crate::image::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string, Dimensions};
-use image::imageops;
-use image::imageops::grayscale;
-use image::GenericImageView;
-use quadtree_rs::entry::Entry;
-use std::thread::available_parallelism;
-use svg::node::element::Path;
-use svg::{Document, Node};
+use crate::image::image::Dimensions;
+use crate::types::rotation::Rotation;
+use parking_lot::Mutex;
+use rand::{rngs::SmallRng, Rng, SeedableRng};
+use std::sync::Arc;
 use swash::FontRef;
 
 use crate::common::font::Font;
-use crate::io::debug::{debug_collidables, debug_text};
 
 pub(crate) mod letter;
 pub(crate) mod word;
@@ -285,7 +268,7 @@ pub fn create_image() {
     inp.sort_by(|x, y| y.scale.total_cmp(&x.scale));
 
     let image = image::load_from_memory(test_image).expect("image load failed");
-    let output_dimensions = Dimensions::from_wh(1000, 2000);
+    let output_dimensions = Dimensions::from_wh(1000, 1000);
 
     create_word_cloud(output_dimensions, font, inp, &image);
 }

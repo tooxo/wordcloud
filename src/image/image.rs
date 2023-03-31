@@ -1,8 +1,8 @@
 use edge_detection::Detection;
 
+use crate::types::point::Point;
 use crate::types::rect::Rect;
 use image::{DynamicImage, GenericImageView, GrayImage, Rgba};
-use crate::types::point::Point;
 
 pub(crate) type Dimensions = Rect<usize>;
 
@@ -26,7 +26,11 @@ pub(crate) fn canny_algorithm(image: &GrayImage, sigma: f32) -> Detection {
     det
 }
 
-pub(crate) fn average_color_for_rect(image: &DynamicImage, rect: &Rect<u32>, default: Rgba<u8>) -> Rgba<u8> {
+pub(crate) fn average_color_for_rect(
+    image: &DynamicImage,
+    rect: &Rect<u32>,
+    default: Rgba<u8>,
+) -> Rgba<u8> {
     if rect.max.x > image.width() || rect.max.y > image.height() {
         return default;
     }
@@ -59,5 +63,5 @@ pub(crate) fn average_color_for_rect(image: &DynamicImage, rect: &Rect<u32>, def
 }
 
 pub(crate) fn color_to_rgb_string(rgba: &Rgba<u8>) -> String {
-    format!("rgb({}, {}, {})", rgba.0[0], rgba.0[1], rgba.0[2], )
+    format!("rgb({}, {}, {})", rgba.0[0], rgba.0[1], rgba.0[2],)
 }

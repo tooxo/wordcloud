@@ -20,3 +20,4 @@ quadtree_rs = { git = "https://github.com/tooxo/quadtree.git", branch = "beta" }
 num-traits = "0.2.15"
 swash = "0.1.6"
 itertools = "0.10.5"
+base64 = "0.21.0"

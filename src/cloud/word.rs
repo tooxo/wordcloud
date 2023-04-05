@@ -1,7 +1,8 @@
 use std::ops::Deref;
 use swash::scale::outline::Outline;
 use swash::shape::Direction::LeftToRight;
-use swash::text::Script::Latin;
+use swash::text::Script;
+
 use swash::zeno::Command;
 use swash::zeno::PathData;
 
@@ -41,7 +42,7 @@ impl Word {
         let mut shape = font.shape().lock();
         let mut shaper = shape
             .builder(*font.re().deref())
-            .script(Latin)
+            .script(Script::Unknown)
             .size(font_size)
             .direction(LeftToRight)
             .features(&[("dlig", 1)])
@@ -133,10 +134,8 @@ impl Word {
             }
         }
 
-        // bc. of the mirroring there can be an offset to the actual starting point from the
-        // letters
         for glyph in &mut w.glyphs {
-            let height_pt = Point { x: 0.0, y: max_y };
+            let height_pt = Point::default();
             for command in &mut glyph.state {
                 *command = match &command {
                     SVGPathCommand::Move(p) => SVGPathCommand::Move(Move {

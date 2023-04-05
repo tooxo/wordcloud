@@ -3,27 +3,20 @@ use crate::cloud::word::Inp;
 use crate::cloud::word_cloud::create_word_cloud;
 use crate::image::image::Dimensions;
 use crate::types::rotation::Rotation;
-use parking_lot::Mutex;
+
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use std::sync::Arc;
+
 use swash::FontRef;
 
 use crate::common::font::Font;
+use crate::rank::rank::Word;
 
 pub(crate) mod letter;
 pub(crate) mod word;
 mod word_cloud;
 
-pub fn create_image() {
-    let font_bts = include_bytes!("../../Lato-Regular.ttf") as &[u8];
-    let test_image = include_bytes!("../../drake-nothing-was-the-same-148495.jpg") as &[u8];
-
-    let font_ref = FontRef::from_index(font_bts, 0).unwrap();
-    let font = Font::new(font_ref);
-
-    let random = SmallRng::from_seed([3; 32]);
-    let random_arc = Arc::new(Mutex::new(random));
-
+fn create_placeholder_words() -> Vec<Inp> {
+    let mut random = SmallRng::from_seed([3; 32]);
     let mut inp: Vec<Inp> = Vec::new();
     let words = vec![
         "language",
@@ -228,47 +221,82 @@ pub fn create_image() {
         "warm",
     ];
 
-    let mult = 1.0;
-
-    let mut lock = random_arc.lock();
-
     for _ in 0..30 {
         inp.push(Inp {
-            text: words[lock.gen_range(0..words.len())].parse().unwrap(),
-            scale: lock.gen_range(130..160) as f32 * mult,
+            text: words[random.gen_range(0..words.len())].parse().unwrap(),
+            scale: random.gen_range(130..160) as f32,
             rotation: Rotation::Zero,
         });
     }
 
-    for _ in 0..2000 {
+    for _ in 0..1000 {
         inp.push(Inp {
-            text: words[lock.gen_range(0..words.len())].parse().unwrap(),
-            scale: lock.gen_range(10..40) as f32 * mult,
+            text: words[random.gen_range(0..words.len())].parse().unwrap(),
+            scale: random.gen_range(10..40) as f32,
             rotation: Rotation::Zero,
         });
     }
 
-    for _ in 0..2000 {
+    for _ in 0..1000 {
         inp.push(Inp {
-            text: words[lock.gen_range(0..words.len())].parse().unwrap(),
-            scale: lock.gen_range(5..20) as f32 * mult,
+            text: words[random.gen_range(0..words.len())].parse().unwrap(),
+            scale: random.gen_range(5..20) as f32,
             rotation: Rotation::Zero,
         });
     }
 
-    for _ in 0..2000 {
+    for _ in 0..1000 {
         inp.push(Inp {
-            text: words[lock.gen_range(0..words.len())].parse().unwrap(),
-            scale: lock.gen_range(5..20) as f32 * mult,
+            text: words[random.gen_range(0..words.len())].parse().unwrap(),
+            scale: random.gen_range(5..20) as f32,
             rotation: Rotation::Ninety,
         });
     }
-    drop(lock);
 
     inp.sort_by(|x, y| y.scale.total_cmp(&x.scale));
 
+    inp
+}
+
+pub fn create_image(input_words_counted: Vec<Word>) {
+    let font_bts = include_bytes!("../../Lato-Regular.ttf") as &[u8];
+    let test_image = include_bytes!("../../drake-nothing-was-the-same-148495.jpg") as &[u8];
+
+    let font_ref = FontRef::from_index(font_bts, 0).unwrap();
+    let font = Font::new(font_ref);
+
     let image = image::load_from_memory(test_image).expect("image load failed");
     let output_dimensions = Dimensions::from_wh(1000, 1000);
+
+    let words = 2000;
+    let max = input_words_counted
+        .iter()
+        .take(words)
+        .map(|x| (x.count as f32))
+        .sum::<f32>()
+        / words as f32;
+
+    dbg!(max);
+
+    let _inp: Vec<Inp> = input_words_counted
+        .iter()
+        .take(2000)
+        .map(|w| Inp {
+            text: w.content.to_string(),
+            scale: ((w.count as f32) / max) * 15.,
+            rotation: Rotation::Zero,
+        })
+        .collect();
+
+    let inp = create_placeholder_words();
+    /*let inp = vec![
+        Inp{
+            text: "aaaa".to_string(),
+            scale: 90.0,
+            rotation: Rotation::Ninety,
+        }
+    ];*/
+    dbg!(inp.len());
 
     create_word_cloud(output_dimensions, font, inp, &image);
 }

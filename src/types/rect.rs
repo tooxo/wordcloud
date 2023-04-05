@@ -81,7 +81,7 @@ where
             && self.max.x >= other.max.x
             && self.max.y >= other.max.y
     }
-    
+
     pub(crate) fn intersects(&self, other: &Line<T>) -> bool {
         if (other.start.x <= self.min.x && other.end.x <= self.min.x)
             || (other.start.y <= self.min.y && other.end.y <= self.min.y)

@@ -231,10 +231,7 @@ impl Word {
     }
 
     pub(crate) fn d(&self) -> String {
-        self.glyphs
-            .iter()
-            .map(|g| g.d(&self.offset))
-            .collect()
+        self.glyphs.iter().map(|g| g.d(&self.offset)).collect()
     }
 
     pub(crate) fn word_intersect(&self, other: &Word) -> Option<Point<f32>> {

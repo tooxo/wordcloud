@@ -20,7 +20,7 @@ use rayon::iter::ParallelIterator;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator};
 
 use std::sync::Arc;
-use svg::node::element::{Path};
+use svg::node::element::Path;
 use svg::{Document, Node};
 
 const QUADTREE_DIVISOR: f32 = 4.;

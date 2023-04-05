@@ -234,7 +234,6 @@ impl Word {
         self.glyphs
             .iter()
             .map(|g| g.d(&self.offset))
-            .intersperse(String::from(" "))
             .collect()
     }
 

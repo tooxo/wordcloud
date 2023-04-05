@@ -16,7 +16,8 @@ image = "0.24.5"
 edge-detection = "0.2.6"
 rand = { version = "0.8.5", features = ["small_rng"] }
 parking_lot = "0.12.1"
-quadtree_rs = { git = "https://github.com/tooxo/quadtree.git", branch = "beta" }
+# quadtree_rs = { git = "https://github.com/tooxo/quadtree.git", branch = "beta" }
+quadtree_rs = { path = "../quadtree" }
 num-traits = "0.2.15"
 swash = "0.1.6"
 itertools = "0.10.5"

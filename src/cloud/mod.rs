@@ -259,8 +259,8 @@ fn create_placeholder_words() -> Vec<Inp> {
 }
 
 pub fn create_image(input_words_counted: Vec<Word>) {
-    let font_bts = include_bytes!("../../Lato-Regular.ttf") as &[u8];
-    let test_image = include_bytes!("../../drake-nothing-was-the-same-148495.jpg") as &[u8];
+    let font_bts = include_bytes!("../../assets/OpenSans-Regular.ttf") as &[u8];
+    let test_image = include_bytes!("../../assets/circ.png") as &[u8];
 
     let font_ref = FontRef::from_index(font_bts, 0).unwrap();
     let font = Font::new(font_ref);

@@ -1,6 +1,3 @@
-#![feature(iter_intersperse)]
-#![feature(box_into_inner)]
-
 pub mod cloud;
 mod common;
 pub mod filtering;

@@ -6,6 +6,7 @@ use crate::types::rotation::Rotation;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Letter {
+    #[allow(dead_code)]
     pub(crate) char: char,
     pub(crate) pixel_bounding_box: Rect<f32>,
 

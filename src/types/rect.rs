@@ -81,14 +81,7 @@ where
             && self.max.x >= other.max.x
             && self.max.y >= other.max.y
     }
-
-    pub(crate) fn contains_point(&self, other: &Point<T>) -> bool {
-        self.min.x <= other.x
-            && self.max.x >= other.x
-            && self.min.y <= other.y
-            && self.max.y >= other.y
-    }
-
+    
     pub(crate) fn intersects(&self, other: &Line<T>) -> bool {
         if (other.start.x <= self.min.x && other.end.x <= self.min.x)
             || (other.start.y <= self.min.y && other.end.y <= self.min.y)
@@ -202,7 +195,7 @@ where
     }
 }
 
-impl<T> From<&quadtree_rs::area::Area<T>> for Rect<T>
+impl<T> From<&Area<T>> for Rect<T>
 where
     T: PrimInt + Default,
 {
@@ -220,7 +213,7 @@ where
     }
 }
 
-impl<T> From<&Rect<T>> for quadtree_rs::area::Area<T>
+impl<T> From<&Rect<T>> for Area<T>
 where
     T: PrimInt + Default,
 {

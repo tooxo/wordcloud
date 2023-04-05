@@ -1,6 +1,6 @@
 use crate::cloud::word::Word;
 use crate::common::font::Font;
-use crate::image::image::Dimensions;
+use crate::image::Dimensions;
 use base64::engine::general_purpose;
 use base64::Engine;
 use quadtree_rs::entry::Entry;

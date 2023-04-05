@@ -2,7 +2,7 @@ use rayon::iter::ParallelIterator;
 use rayon::prelude::ParallelString;
 use WordCloudRust::cloud::create_image;
 use WordCloudRust::filtering::clean;
-use WordCloudRust::rank::rank::RankedWords;
+use WordCloudRust::rank::RankedWords;
 use WordCloudRust::{filtering, io};
 
 fn main() {
@@ -18,8 +18,8 @@ fn main() {
 
     let ranked = RankedWords::rank2(f);
 
-    for i in 0..20 {
-        println!("{}: {}x", ranked[i].content, ranked[i].count);
+    for i in ranked.iter().take(20) {
+        println!("{}: {}x", i.content, i.count);
     }
     create_image(ranked);
 }

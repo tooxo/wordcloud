@@ -19,22 +19,11 @@ macro_rules! format_float {
 }
 
 pub(crate) trait SvgCommand {
-    fn to_string(&self, offset: &Point<f32>) -> String;
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String);
     fn length_estimation(&self) -> usize;
 }
 
 impl SVGPathCommand {
-    pub(crate) fn to_string(&self, offset: &Point<f32>) -> String {
-        match self {
-            SVGPathCommand::Move(e) => e.to_string(offset),
-            SVGPathCommand::Line(e) => e.to_string(offset),
-            SVGPathCommand::QuadCurve(e) => e.to_string(offset),
-            SVGPathCommand::Curve(e) => e.to_string(offset),
-            SVGPathCommand::End(e) => e.to_string(offset),
-        }
-    }
-
     pub(crate) fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         match self {
             SVGPathCommand::Move(x) => x.append_to_string(offset, string),
@@ -110,6 +99,7 @@ pub(crate) struct QuadCurve {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub(crate) struct Curve {
     pub(crate) t2: Point<f32>,
     pub(crate) t1: Point<f32>,
@@ -180,10 +170,6 @@ where
 }
 
 impl SvgCommand for Line<f32> {
-    fn to_string(&self, offset: &Point<f32>) -> String {
-        format!("L {} {}", self.end.x + offset.x, self.end.y + offset.y)
-    }
-
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("L ");
         string.push_str(format_float!(self.end.x + offset.x));
@@ -197,14 +183,6 @@ impl SvgCommand for Line<f32> {
 }
 
 impl SvgCommand for Move {
-    fn to_string(&self, offset: &Point<f32>) -> String {
-        format!(
-            "M {} {}",
-            self.position.x + offset.x,
-            self.position.y + offset.y
-        )
-    }
-
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("M ");
         string.push_str(format_float!(self.position.x + offset.x));
@@ -218,16 +196,6 @@ impl SvgCommand for Move {
 }
 
 impl SvgCommand for QuadCurve {
-    fn to_string(&self, offset: &Point<f32>) -> String {
-        format!(
-            "Q {} {}, {} {} ",
-            self.t1.x + offset.x,
-            self.t1.y + offset.y,
-            self.t.x + offset.x,
-            self.t.y + offset.y
-        )
-    }
-
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("Q ");
         string.push_str(format_float!(self.t1.x + offset.x));
@@ -245,18 +213,6 @@ impl SvgCommand for QuadCurve {
 }
 
 impl SvgCommand for Curve {
-    fn to_string(&self, offset: &Point<f32>) -> String {
-        format!(
-            "C {} {}, {} {}, {} {} ",
-            self.t1.x + offset.x,
-            self.t1.y + offset.y,
-            self.t2.x + offset.x,
-            self.t2.y + offset.y,
-            self.t.x + offset.x,
-            self.t.y + offset.y
-        )
-    }
-
     fn append_to_string(&self, _offset: &Point<f32>, _string: &mut String) {
         todo!()
     }
@@ -267,10 +223,6 @@ impl SvgCommand for Curve {
 }
 
 impl SvgCommand for End {
-    fn to_string(&self, _offset: &Point<f32>) -> String {
-        String::from("Z")
-    }
-
     fn append_to_string(&self, _offset: &Point<f32>, string: &mut String) {
         string.push('Z');
     }

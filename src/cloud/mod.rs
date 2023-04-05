@@ -1,7 +1,7 @@
 use crate::cloud::word::Inp;
 
 use crate::cloud::word_cloud::create_word_cloud;
-use crate::image::image::Dimensions;
+use crate::image::Dimensions;
 use crate::types::rotation::Rotation;
 
 use rand::{rngs::SmallRng, Rng, SeedableRng};
@@ -9,7 +9,7 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 use swash::FontRef;
 
 use crate::common::font::Font;
-use crate::rank::rank::Word;
+use crate::rank::Word;
 
 pub(crate) mod letter;
 pub(crate) mod word;

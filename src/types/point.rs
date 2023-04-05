@@ -38,6 +38,7 @@ impl<T> Point<T>
 where
     T: Sub<Output = T> + Copy,
 {
+    #[allow(dead_code)]
     pub(crate) fn sub_lx(&self, other: &Point<T>) -> Point<T> {
         Point {
             x: self.x - other.x,
@@ -113,6 +114,7 @@ where
         self.x <= other.x && self.y <= other.y
     }
 
+    #[allow(dead_code)]
     pub(crate) fn full_ge(&self, other: &Point<T>) -> bool {
         self.x >= other.x && self.y >= other.y
     }

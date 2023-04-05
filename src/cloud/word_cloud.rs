@@ -1,7 +1,7 @@
 use crate::cloud::word::Word;
 use crate::cloud::Inp;
 use crate::common::font::Font;
-use crate::image::image::{average_color_for_rect, canny_algorithm, Dimensions};
+use crate::image::{average_color_for_rect, canny_algorithm, Dimensions};
 use crate::io::debug::{
     debug_background_collision, debug_background_on_result, debug_collidables, debug_text,
 };
@@ -318,7 +318,7 @@ impl<'a> WordCloud<'a> {
                 let p = Path::new()
                     .set("d", word.d())
                     .set("stoke", "none")
-                    .set("fill", crate::image::image::color_to_rgb_string(&color));
+                    .set("fill", crate::image::color_to_rgb_string(&color));
                 let _s = p.to_string();
                 {
                     doc_mutex.lock().append(p);
@@ -333,7 +333,7 @@ pub(crate) fn create_word_cloud(
     dimensions: Dimensions,
     font: Font,
     inp: Vec<Inp>,
-    _background_image: &DynamicImage,
+    background_image: &DynamicImage,
 ) {
     let random = Arc::new(Mutex::new(SmallRng::from_entropy()));
 
@@ -372,7 +372,7 @@ pub(crate) fn create_word_cloud(
         .collect::<Vec<Word>>();
 
     let mut wc = WordCloud::new(dimensions, font.clone());
-    // wc.add_background(background_image);
+    wc.add_background(background_image);
     wc.put_text(words);
     wc.write_to_file("created.svg");
 

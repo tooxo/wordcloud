@@ -20,7 +20,7 @@ impl StopWords {
     pub fn from_file(filename: &str) -> StopWords {
         let contents = read_string_from_file(filename);
 
-        let iter = contents.split("\n");
+        let iter = contents.split('\n');
 
         let mut v: Vec<String> = Vec::new();
         for x in iter {

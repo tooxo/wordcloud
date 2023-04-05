@@ -6,8 +6,8 @@ use WordCloudRust::rank::RankedWords;
 use WordCloudRust::{filtering, io};
 
 fn main() {
-    let sw = filtering::stop_words::StopWords::from_file("test");
-    let s = io::file::read_string_from_file("lyric_test");
+    let sw = filtering::stop_words::StopWords::from_file("assets/stopwords");
+    let s = io::file::read_string_from_file("input");
     let s2 = clean(s.to_lowercase().as_str());
     let f = s2
         .par_split_whitespace()

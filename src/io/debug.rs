@@ -7,6 +7,7 @@ use quadtree_rs::entry::Entry;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
+use crate::types::rotation::Rotation;
 use svg::node::element::{Path, Rectangle, Style, Text};
 use svg::{Document, Node};
 
@@ -126,14 +127,19 @@ pub(crate) fn debug_text(
             .set("y", word.offset.y)
             .set("font-family", "Test")
             .set("font-size", word.scale);
-        if word.rotation == crate::types::rotation::Rotation::Ninety {
-            t.assign(
-                "style",
-                format!(
-                    "transform: rotate(90deg); transform-origin: {}px {}px",
-                    word.offset.x, word.offset.y
-                ),
-            );
+        match word.rotation {
+            Rotation::Zero => (),
+            Rotation::Ninety | Rotation::OneEighty | Rotation::TwoSeventy => {
+                t.assign(
+                    "style",
+                    format!(
+                        "transform: rotate({}deg); transform-origin: {}px {}px",
+                        word.rotation.inner(),
+                        word.offset.x,
+                        word.offset.y
+                    ),
+                );
+            }
         }
         t.append(svg::node::Text::new(&word.text));
 

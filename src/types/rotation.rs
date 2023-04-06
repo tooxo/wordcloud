@@ -11,6 +11,15 @@ pub(crate) enum Rotation {
 }
 
 impl Rotation {
+    pub(crate) fn inner(&self) -> i64 {
+        match self {
+            Rotation::Zero => 0,
+            Rotation::Ninety => 90,
+            Rotation::OneEighty => 180,
+            Rotation::TwoSeventy => 270,
+        }
+    }
+
     pub(crate) fn rotate_point(&self, point: Point<f32>) -> Point<f32> {
         match self {
             Rotation::Zero => point,
@@ -23,8 +32,8 @@ impl Rotation {
                 y: -point.y,
             },
             Rotation::TwoSeventy => Point {
-                x: -point.y,
-                y: point.x,
+                x: point.y,
+                y: -point.x,
             },
         }
     }
@@ -41,8 +50,8 @@ impl Rotation {
                 y: -point.y,
             },
             Rotation::TwoSeventy => Point {
-                x: point.y,
-                y: -point.x,
+                x: -point.y,
+                y: point.x,
             },
         }
     }

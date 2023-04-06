@@ -139,3 +139,12 @@ where
         }
     }
 }
+
+impl<T> From<(T, T)> for Point<T> {
+    fn from(value: (T, T)) -> Self {
+        Point {
+            x: value.0,
+            y: value.1,
+        }
+    }
+}

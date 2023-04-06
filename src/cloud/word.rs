@@ -1,6 +1,8 @@
 use std::ops::Deref;
 use swash::scale::outline::Outline;
+use swash::scale::ScaleContext;
 use swash::shape::Direction::LeftToRight;
+use swash::shape::ShapeContext;
 use swash::text::Script;
 
 use swash::zeno::Command;
@@ -34,22 +36,21 @@ pub(crate) struct Word {
 impl Word {
     pub(crate) fn build(
         text: &str,
-        font: Font,
+        font: &Font,
         font_size: f32,
         start: Point<f32>,
         rotation: Rotation,
     ) -> Word {
-        let mut shape = font.shape().lock();
+        let mut shape = ShapeContext::new();
         let mut shaper = shape
             .builder(*font.re().deref())
             .script(Script::Unknown)
             .size(font_size)
             .direction(LeftToRight)
             .features(&[("dlig", 1)])
-            .insert_dotted_circles(true)
             .build();
 
-        let mut scale = font.scale().lock();
+        let mut scale = ScaleContext::new();
         let mut scaler = scale.builder(*font.re().deref()).size(font_size).build();
 
         shaper.add_str(text);
@@ -110,9 +111,6 @@ impl Word {
                     .collect::<Vec<Letter>>(),
             );
         });
-
-        drop(scale);
-        drop(shape);
 
         let mut w = Word {
             text: String::from(text),
@@ -252,22 +250,27 @@ impl Word {
             };
 
             // construct a line out of the containing word
-            let line = Line {
+            let high_line = Line {
                 start: midpoint,
-                end: Point {
-                    x: midpoint.x,
-                    y: other.bounding_box.min.y - 10.0,
-                },
+                end: (midpoint.x, other.bounding_box.min.y - 10.0).into(),
             };
 
-            let mut collisions = 0;
+            let low_line = Line {
+                start: midpoint,
+                end: (midpoint.x, other.bounding_box.max.y + 10.0).into(),
+            };
+
+            let (mut col_h, mut col_l) = (0, 0);
             for collidable in right_collidables {
-                if collide_line_line(&collidable, &line).is_some() {
-                    collisions += 1;
+                if collide_line_line(&collidable, &high_line).is_some() {
+                    col_h += 1;
+                }
+                if collide_line_line(&collidable, &low_line).is_some() {
+                    col_l += 1;
                 }
             }
 
-            if collisions % 2 == 1 {
+            if col_h % 2 == 1 || col_l % 2 == 1 {
                 // its inside the text
                 return Some(Point::default());
             }

@@ -14,11 +14,12 @@ use quadtree_rs::area::{Area, AreaBuilder};
 use quadtree_rs::entry::Entry;
 use quadtree_rs::Quadtree;
 use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
+use rand::{random, thread_rng, Rng, SeedableRng};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::ParallelIterator;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator};
 
+use crate::types::rotation::Rotation;
 use std::sync::Arc;
 use svg::node::element::Path;
 use svg::{Document, Node};
@@ -234,10 +235,14 @@ impl<'a> WordCloud<'a> {
 
                 word = Word::build(
                     word.text.as_str(),
-                    self.font.clone(),
-                    word.scale - 5.,
+                    &self.font,
+                    word.scale - 2.,
                     word.offset,
-                    word.rotation,
+                    if random() {
+                        Rotation::Zero
+                    } else {
+                        Rotation::TwoSeventy
+                    },
                 );
             }
             /*if iters > 55 {
@@ -335,30 +340,21 @@ pub(crate) fn create_word_cloud(
     inp: Vec<Inp>,
     background_image: &DynamicImage,
 ) {
-    let random = Arc::new(Mutex::new(SmallRng::from_entropy()));
-
-    let slices = (0..PROCESSING_SLICES)
+    let mut words = (0..PROCESSING_SLICES)
+        .into_par_iter()
         .map(|n| {
             inp.iter()
                 .skip(n)
                 .step_by(PROCESSING_SLICES)
                 .collect::<Vec<&Inp>>()
         })
-        .collect::<Vec<Vec<&Inp>>>();
-
-    let words = slices
-        .into_par_iter()
-        .map(|inps| {
-            let fnt = font.clone();
-            let cl = random.clone();
-            inps.into_iter().map(move |x| {
-                let mut locked = cl.lock();
-                let left_offs = locked.gen_range(0.0..dimensions.width() as f32);
-                let top_offs = locked.gen_range(0.0..dimensions.height() as f32);
-                drop(locked);
+        .map(|inputs| {
+            inputs.into_iter().map(|x| {
+                let left_offs = thread_rng().gen_range(0.0..dimensions.width() as f32);
+                let top_offs = thread_rng().gen_range(0.0..dimensions.height() as f32);
                 Word::build(
                     &x.text,
-                    fnt.clone(),
+                    &font,
                     x.scale,
                     Point {
                         x: left_offs,
@@ -371,9 +367,15 @@ pub(crate) fn create_word_cloud(
         .flatten_iter()
         .collect::<Vec<Word>>();
 
+    words.sort_by_key(|x| x.scale as usize);
+    words.reverse();
+
+    let (first, second) = words.split_at(20);
+
     let mut wc = WordCloud::new(dimensions, font.clone());
     wc.add_background(background_image);
-    wc.put_text(words);
+    wc.put_text_sync(first.to_vec());
+    wc.put_text(second.to_vec());
     wc.write_to_file("created.svg");
 
     if true {

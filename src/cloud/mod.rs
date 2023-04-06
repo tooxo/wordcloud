@@ -8,13 +8,14 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 
 use swash::FontRef;
 
-use crate::common::font::Font;
+use crate::common::font::{Font, FontType};
 use crate::rank::Word;
 
 pub(crate) mod letter;
 pub(crate) mod word;
 mod word_cloud;
 
+#[allow(dead_code)]
 fn create_placeholder_words() -> Vec<Inp> {
     let mut random = SmallRng::from_seed([3; 32]);
     let mut inp: Vec<Inp> = Vec::new();
@@ -263,7 +264,7 @@ pub fn create_image(input_words_counted: Vec<Word>) {
     let test_image = include_bytes!("../../assets/circ.png") as &[u8];
 
     let font_ref = FontRef::from_index(font_bts, 0).unwrap();
-    let font = Font::new(font_ref);
+    let font = Font::new(font_ref, FontType::TTF);
 
     let image = image::load_from_memory(test_image).expect("image load failed");
     let output_dimensions = Dimensions::from_wh(1000, 1000);

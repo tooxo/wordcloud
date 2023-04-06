@@ -1,15 +1,11 @@
-use crate::cloud::word::Word;
-use crate::common::font::Font;
-use crate::image::Dimensions;
-use base64::engine::general_purpose;
-use base64::Engine;
+use crate::{cloud::word::Word, common::font::Font, image::Dimensions, types::rotation::Rotation};
+use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use quadtree_rs::entry::Entry;
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
-
-use crate::types::rotation::Rotation;
-use svg::node::element::{Path, Rectangle, Style, Text};
-use svg::{Document, Node};
+use rand::{rngs::SmallRng, Rng, SeedableRng};
+use svg::{
+    node::element::{Path, Rectangle, Style, Text},
+    Document, Node,
+};
 
 pub(crate) fn debug_background_collision(
     filename: &str,
@@ -109,12 +105,13 @@ pub(crate) fn debug_text(
         .set("width", dimensions.width());
 
     let dt = font.re().data;
-    let enc = general_purpose::STANDARD_NO_PAD.encode(dt);
+    let enc = STANDARD_NO_PAD.encode(dt);
     let style = Style::new(format!(
         "@font-face{{\
             font-family: \"Test\";\
-            src: url(\"data:application/font-ttf;charset=utf-8;base64,{}\");\
+            src: url(\"data:{};charset=utf-8;base64,{}\");\
             }}",
+        font.t().to_embed_tag(),
         enc
     ));
 

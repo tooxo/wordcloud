@@ -6,9 +6,10 @@ use crate::types::rotation::Rotation;
 
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
-use swash::FontRef;
+use crate::common::font::Font;
 
-use crate::common::font::{Font, FontType};
+use crate::common::font::FontSetBuilder;
+
 use crate::rank::Word;
 
 pub(crate) mod letter;

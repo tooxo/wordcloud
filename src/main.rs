@@ -1,12 +1,28 @@
 use rayon::iter::ParallelIterator;
 use rayon::prelude::ParallelString;
+use std::path::Path;
 use WordCloudRust::cloud::create_image;
 use WordCloudRust::filtering::clean;
+use WordCloudRust::filtering::stop_words::StopWords;
+use WordCloudRust::io;
+use WordCloudRust::io::folder::RecursiveFolderIterator;
 use WordCloudRust::rank::RankedWords;
-use WordCloudRust::{filtering, io};
 
 fn main() {
-    let sw = filtering::stop_words::StopWords::from_file("assets/stopwords");
+    let mut sw = StopWords::new().add_file("assets/stopwords");
+
+    let folder_path = Path::new("./assets/stopwords-json").to_path_buf();
+    let stopword_files = RecursiveFolderIterator::new(&folder_path, &|w| match w.file_name() {
+        None => false,
+        Some(n) => String::from(n.to_str().unwrap()).ends_with(".txt"),
+    });
+
+    for stopword_file in stopword_files {
+        if let Some(fp) = stopword_file.to_str() {
+            sw.append_file(fp);
+        }
+    }
+
     let s = io::file::read_string_from_file("input");
     let s2 = clean(s.to_lowercase().as_str());
     let f = s2

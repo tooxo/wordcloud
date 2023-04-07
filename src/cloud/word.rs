@@ -1,15 +1,13 @@
-use std::ops::Deref;
 use swash::scale::outline::Outline;
 use swash::scale::ScaleContext;
 use swash::shape::Direction::LeftToRight;
 use swash::shape::ShapeContext;
-use swash::text::Script;
 
 use swash::zeno::Command;
 use swash::zeno::PathData;
 
 use crate::cloud::letter::Letter;
-use crate::common::font::Font;
+use crate::common::font::{Font, FontSet, GuessScript};
 use crate::common::path_collision::collide_line_line;
 use crate::common::svg_command::{End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
@@ -23,7 +21,7 @@ pub(crate) struct Inp {
 }
 
 #[derive(Clone)]
-pub(crate) struct Word {
+pub(crate) struct Word<'a> {
     pub(crate) text: String,
     pub(crate) glyphs: Vec<Letter>,
     pub(crate) offset: Point<f32>,
@@ -31,27 +29,35 @@ pub(crate) struct Word {
     pub(crate) bounding_box: Rect<f32>,
     pub(crate) scale: f32,
     pub(crate) rotation: Rotation,
+    pub(crate) used_font: &'a Font<'a>,
 }
 
-impl Word {
+impl<'a> Word<'a> {
     pub(crate) fn build(
         text: &str,
-        font: &Font,
+        font: &'a FontSet,
         font_size: f32,
         start: Point<f32>,
         rotation: Rotation,
-    ) -> Word {
+    ) -> Word<'a> {
+        let ws = text.guess_script();
+        let used_font = font.get_font_for_script(&ws).unwrap();
         let mut shape = ShapeContext::new();
         let mut shaper = shape
-            .builder(*font.re().deref())
-            .script(Script::Unknown)
+            .builder(*used_font.reference())
+            .script(ws.s())
             .size(font_size)
             .direction(LeftToRight)
-            .features(&[("dlig", 1)])
+            .insert_dotted_circles(true)
+            .retain_ignorables(true)
+            .features(used_font.supported_features())
             .build();
 
         let mut scale = ScaleContext::new();
-        let mut scaler = scale.builder(*font.re().deref()).size(font_size).build();
+        let mut scaler = scale
+            .builder(*used_font.reference())
+            .size(font_size)
+            .build();
 
         shaper.add_str(text);
 
@@ -119,6 +125,7 @@ impl Word {
             bounding_box: Rect::default(),
             scale: font_size,
             rotation,
+            used_font,
         };
 
         let mut max_y = 0.0;

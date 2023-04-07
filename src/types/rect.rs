@@ -5,7 +5,7 @@ use quadtree_rs::area::{Area, AreaBuilder};
 use std::ops::{Add, Sub};
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct Rect<T> {
+pub struct Rect<T> {
     pub(crate) min: Point<T>,
     pub(crate) max: Point<T>,
 }

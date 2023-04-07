@@ -1,6 +1,6 @@
 use crate::cloud::word::Word;
 use crate::cloud::Inp;
-use crate::common::font::Font;
+use crate::common::font::FontSet;
 use crate::image::{average_color_for_rect, canny_algorithm, Dimensions};
 use crate::io::debug::{
     debug_background_collision, debug_background_on_result, debug_collidables, debug_text,
@@ -30,23 +30,23 @@ const PROCESSING_SLICES: usize = 8; /*match std::thread::available_parallelism()
                                         Err(_) => 4,
                                     };*/
 
-struct WordCloud<'a> {
-    ct: Arc<RwLock<Quadtree<u64, Word>>>,
+pub struct WordCloud<'a> {
+    ct: Arc<RwLock<Quadtree<u64, Word<'a>>>>,
     bg: Option<Quadtree<u64, ()>>,
     bg_image: Option<&'a DynamicImage>,
     dimensions: Dimensions,
     random: Mutex<SmallRng>,
-    font: Font<'a>,
+    font: &'a FontSet<'a>,
 }
 
 impl<'a> WordCloud<'a> {
     fn needed_tree_depth(dimensions: Dimensions) -> f32 {
-        ((usize::max(dimensions.width(), dimensions.height()) as f32 / QUADTREE_DIVISOR).log2()
+        ((dimensions.width().max(dimensions.height()) as f32 / QUADTREE_DIVISOR).log2()
             / 2.0_f32.log2())
         .ceil()
     }
 
-    pub(crate) fn new(dimensions: Dimensions, font: Font<'a>) -> Self {
+    fn new(dimensions: Dimensions, font: &'a FontSet<'a>) -> Self {
         WordCloud {
             ct: Arc::new(RwLock::new(Quadtree::new(
                 WordCloud::needed_tree_depth(dimensions) as usize,
@@ -59,7 +59,7 @@ impl<'a> WordCloud<'a> {
         }
     }
 
-    pub(crate) fn add_background(&mut self, image: &'a DynamicImage) {
+    fn add_background(&mut self, image: &'a DynamicImage) {
         let resize = image.resize(
             (self.dimensions.width() as f32 / QUADTREE_DIVISOR) as u32,
             (self.dimensions.height() as f32 / QUADTREE_DIVISOR) as u32,
@@ -113,7 +113,7 @@ impl<'a> WordCloud<'a> {
         }
     }
 
-    fn add_word(&self, mut word: Word) {
+    fn add_word(&self, mut word: Word<'a>) {
         let mut theta = 0.0_f64;
         let mut placed = false;
         let mut iters = 0;
@@ -255,12 +255,12 @@ impl<'a> WordCloud<'a> {
         }
     }
 
-    pub(crate) fn put_text_sync(&self, inp: Vec<Word>) {
+    pub(crate) fn put_text_sync(&self, inp: Vec<Word<'a>>) {
         for word in inp {
             self.add_word(word);
         }
     }
-    pub(crate) fn put_text(&mut self, inp: Vec<Word>) {
+    pub(crate) fn put_text(&self, inp: Vec<Word<'a>>) {
         let xl = (0..PROCESSING_SLICES)
             .map(|n| {
                 inp.iter()
@@ -334,9 +334,53 @@ impl<'a> WordCloud<'a> {
     }
 }
 
+pub struct WordCloudBuilder<'a> {
+    dimensions: Option<Dimensions>,
+    font: Option<&'a FontSet<'a>>,
+    image: Option<&'a DynamicImage>,
+}
+
+impl<'a> WordCloudBuilder<'a> {
+    pub fn new() -> Self {
+        WordCloudBuilder {
+            dimensions: None,
+            font: None,
+            image: None,
+        }
+    }
+
+    pub fn dimensions(mut self, dimensions: Dimensions) -> Self {
+        self.dimensions = Some(dimensions);
+        self
+    }
+
+    pub fn font(mut self, font: &'a FontSet<'a>) -> Self {
+        self.font = Some(font);
+        self
+    }
+
+    pub fn image(mut self, image: &'a DynamicImage) -> Self {
+        self.image = Some(image);
+        self
+    }
+
+    pub fn build(self) -> Result<WordCloud<'a>, ()> {
+        let mut wc = match (self.dimensions, self.font) {
+            (Some(d), Some(f)) => WordCloud::new(d, f),
+            _ => return Err(()),
+        };
+
+        if let Some(i) = self.image {
+            wc.add_background(i);
+        }
+
+        Ok(wc)
+    }
+}
+
 pub(crate) fn create_word_cloud(
     dimensions: Dimensions,
-    font: Font,
+    font: FontSet,
     inp: Vec<Inp>,
     background_image: &DynamicImage,
 ) {
@@ -372,8 +416,13 @@ pub(crate) fn create_word_cloud(
 
     let (first, second) = words.split_at(20);
 
-    let mut wc = WordCloud::new(dimensions, font.clone());
-    wc.add_background(background_image);
+    let wc = WordCloudBuilder::new()
+        .dimensions(dimensions)
+        .font(&font)
+        .image(background_image)
+        .build()
+        .unwrap();
+
     wc.put_text_sync(first.to_vec());
     wc.put_text(second.to_vec());
     wc.write_to_file("created.svg");

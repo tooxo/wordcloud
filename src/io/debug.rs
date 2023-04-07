@@ -1,5 +1,8 @@
-use crate::{cloud::word::Word, common::font::Font, image::Dimensions, types::rotation::Rotation};
+use crate::{
+    cloud::word::Word, common::font::FontSet, image::Dimensions, types::rotation::Rotation,
+};
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
+use itertools::Itertools;
 use quadtree_rs::entry::Entry;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use svg::{
@@ -97,32 +100,38 @@ pub(crate) fn debug_text(
     filename: &str,
     entries: &Vec<&Entry<u64, Word>>,
     dimensions: Dimensions,
-    font: &Font,
+    _font: &FontSet,
 ) {
     let mut document = Document::new()
         .set("viewBox", (0, 0, dimensions.width(), dimensions.height()))
         .set("height", dimensions.height())
         .set("width", dimensions.width());
 
-    let dt = font.re().data;
-    let enc = STANDARD_NO_PAD.encode(dt);
-    let style = Style::new(format!(
-        "@font-face{{\
-            font-family: \"Test\";\
+    let fonts_to_embed = entries
+        .iter()
+        .map(|x| x.value_ref().used_font)
+        .unique();
+
+    for font in fonts_to_embed {
+        let enc = STANDARD_NO_PAD.encode(font.reference().data);
+        let style = Style::new(format!(
+            "@font-face{{\
+            font-family: \"{}\";\
             src: url(\"data:{};charset=utf-8;base64,{}\");\
             }}",
-        font.t().to_embed_tag(),
-        enc
-    ));
-
-    document.append(style);
+            font.name(),
+            font.font_type().embed_tag(),
+            enc
+        ));
+        document.append(style);
+    }
 
     for entry in entries {
         let word = entry.value_ref();
         let mut t = Text::new()
             .set("x", word.offset.x)
             .set("y", word.offset.y)
-            .set("font-family", "Test")
+            .set("font-family", word.used_font.name())
             .set("font-size", word.scale);
         match word.rotation {
             Rotation::Zero => (),

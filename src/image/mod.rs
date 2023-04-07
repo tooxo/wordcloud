@@ -4,7 +4,7 @@ use crate::types::point::Point;
 use crate::types::rect::Rect;
 use image::{DynamicImage, GenericImageView, GrayImage, Rgba};
 
-pub(crate) type Dimensions = Rect<usize>;
+pub type Dimensions = Rect<usize>;
 
 impl Dimensions {
     pub(crate) fn from_wh(width: usize, height: usize) -> Self {

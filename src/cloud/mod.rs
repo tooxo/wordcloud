@@ -263,8 +263,9 @@ pub fn create_image(input_words_counted: Vec<Word>) {
     let font_bts = include_bytes!("../../assets/OpenSans-Regular.ttf") as &[u8];
     let test_image = include_bytes!("../../assets/circ.png") as &[u8];
 
-    let font_ref = FontRef::from_index(font_bts, 0).unwrap();
-    let font = Font::new(font_ref, FontType::TTF);
+    let font_set = FontSetBuilder::new()
+        .add_font(Font::from_data("OpenSans".to_string(), font_bts))
+        .build();
 
     let image = image::load_from_memory(test_image).expect("image load failed");
     let output_dimensions = Dimensions::from_wh(1000, 1000);
@@ -299,5 +300,5 @@ pub fn create_image(input_words_counted: Vec<Word>) {
     ];*/
     dbg!(inp.len());
 
-    create_word_cloud(output_dimensions, font, inp, &image);
+    create_word_cloud(output_dimensions, font_set, inp, &image);
 }

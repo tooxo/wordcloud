@@ -102,10 +102,10 @@ pub(crate) struct QuadCurve {
 #[allow(dead_code)]
 // https://www.geogebra.org/classic/WPHQ9rUt
 pub(crate) struct Curve {
-    pub(crate) p4: Point<f32>,
-    pub(crate) p3: Point<f32>,
-    pub(crate) p2: Point<f32>,
-    pub(crate) p1: Point<f32>,
+    pub(crate) c2: Point<f32>,
+    pub(crate) c1: Point<f32>,
+    pub(crate) e: Point<f32>,
+    pub(crate) s: Point<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -216,17 +216,17 @@ impl SvgCommand for QuadCurve {
 impl SvgCommand for Curve {
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("C ");
-        string.push_str(format_float!(self.p4.x + offset.x));
+        string.push_str(format_float!(self.c2.x + offset.x));
         string.push(' ');
-        string.push_str(format_float!(self.p4.y + offset.y));
+        string.push_str(format_float!(self.c2.y + offset.y));
         string.push(',');
-        string.push_str(format_float!(self.p3.x + offset.x));
+        string.push_str(format_float!(self.c1.x + offset.x));
         string.push(' ');
-        string.push_str(format_float!(self.p3.y + offset.y));
+        string.push_str(format_float!(self.c1.y + offset.y));
         string.push(',');
-        string.push_str(format_float!(self.p2.x + offset.x));
+        string.push_str(format_float!(self.e.x + offset.x));
         string.push(' ');
-        string.push_str(format_float!(self.p2.y + offset.y));
+        string.push_str(format_float!(self.e.y + offset.y));
         string.push(',');
     }
 
@@ -283,6 +283,11 @@ impl Curve {
 
     fn get_point_on_curve(&self, t: f32) -> Point<f32> {
         /*
+        p1 = s
+        p2 = c1
+        p3 = c2
+        p4 = e
+
         P_5 = (1-t) P_1 + t P_2
         P_6 = (1-t) P_2 + t P_3
         P_7 = (1-t) P_3 + t P_4
@@ -292,12 +297,12 @@ impl Curve {
          */
 
         let inv_t = 1. - t;
-        let p5 = self.p1 * inv_t + self.p2 * t;
-        let p6 = self.p2 * inv_t + self.p3 * t;
-        let p7 = self.p3 * inv_t + self.p4 * t;
+        let p5 = self.s * inv_t + self.c1 * t;
+        let p6 = self.c1 * inv_t + self.c2 * t;
+        let p7 = self.c2 * inv_t + self.e * t;
         let p8 = p5 * inv_t + p6 * t;
         let p9 = p6 * inv_t + p7 * t;
 
-        p8 * inv_t + p9 * inv_t
+        p8 * inv_t + p9 * t
     }
 }

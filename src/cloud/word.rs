@@ -180,17 +180,17 @@ impl<'a> Word<'a> {
                         ),
                     }),
                     SVGPathCommand::Curve(c) => SVGPathCommand::Curve(Curve {
-                        p4: glyph.rotation.rotate_point(
-                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.p4)),
+                        c2: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.c2)),
                         ),
-                        p3: glyph.rotation.rotate_point(
-                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.p3)),
+                        c1: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.c1)),
                         ),
-                        p2: glyph.rotation.rotate_point(
-                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.p2)),
+                        e: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.e)),
                         ),
-                        p1: glyph.rotation.rotate_point(
-                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.p1)),
+                        s: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.s)),
                         ),
                     }),
                     SVGPathCommand::End(_) => SVGPathCommand::End(End {}),

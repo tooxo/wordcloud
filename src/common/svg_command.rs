@@ -100,11 +100,12 @@ pub(crate) struct QuadCurve {
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
+// https://www.geogebra.org/classic/WPHQ9rUt
 pub(crate) struct Curve {
-    pub(crate) t2: Point<f32>,
-    pub(crate) t1: Point<f32>,
-    pub(crate) t: Point<f32>,
-    pub(crate) p_o: Point<f32>,
+    pub(crate) p4: Point<f32>,
+    pub(crate) p3: Point<f32>,
+    pub(crate) p2: Point<f32>,
+    pub(crate) p1: Point<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -213,12 +214,24 @@ impl SvgCommand for QuadCurve {
 }
 
 impl SvgCommand for Curve {
-    fn append_to_string(&self, _offset: &Point<f32>, _string: &mut String) {
-        todo!()
+    fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
+        string.push_str("C ");
+        string.push_str(format_float!(self.p4.x + offset.x));
+        string.push(' ');
+        string.push_str(format_float!(self.p4.y + offset.y));
+        string.push(',');
+        string.push_str(format_float!(self.p3.x + offset.x));
+        string.push(' ');
+        string.push_str(format_float!(self.p3.y + offset.y));
+        string.push(',');
+        string.push_str(format_float!(self.p2.x + offset.x));
+        string.push(' ');
+        string.push_str(format_float!(self.p2.y + offset.y));
+        string.push(',');
     }
 
     fn length_estimation(&self) -> usize {
-        todo!()
+        2 + 6 + 7 + 7 + 7 + 7 + 7 + 7
     }
 }
 
@@ -233,7 +246,7 @@ impl SvgCommand for End {
 }
 
 impl QuadCurve {
-    pub(crate) fn divide_curve(&self, parts: usize) -> Vec<Point<f32>> {
+    pub(crate) fn divide_quad(&self, parts: usize) -> Vec<Point<f32>> {
         let v = vec![parts; parts];
         v.iter()
             .enumerate()
@@ -256,5 +269,35 @@ impl QuadCurve {
         let e = self.t + (self.t1 - self.t) * t;
 
         d + (e - d) * t
+    }
+}
+
+impl Curve {
+    pub(crate) fn divide_curve(&self, center_points: usize) -> Vec<Point<f32>> {
+        let points = center_points + 2;
+        (0..points)
+            .map(|i| (1. / (points - 1) as f32) * i as f32)
+            .map(|x| self.get_point_on_curve(x))
+            .collect()
+    }
+
+    fn get_point_on_curve(&self, t: f32) -> Point<f32> {
+        /*
+        P_5 = (1-t) P_1 + t P_2
+        P_6 = (1-t) P_2 + t P_3
+        P_7 = (1-t) P_3 + t P_4
+        P_8 = (1-t) P_5 + t P_6
+        P_9 = (1-t) P_6 + t P_7
+        BZ = (1-t) P_8 +t P_9
+         */
+
+        let inv_t = 1. - t;
+        let p5 = self.p1 * inv_t + self.p2 * t;
+        let p6 = self.p2 * inv_t + self.p3 * t;
+        let p7 = self.p3 * inv_t + self.p4 * t;
+        let p8 = p5 * inv_t + p6 * t;
+        let p9 = p6 * inv_t + p7 * t;
+
+        p8 * inv_t + p9 * inv_t
     }
 }

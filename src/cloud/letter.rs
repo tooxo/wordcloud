@@ -1,4 +1,4 @@
-use crate::common::path_collision::approximate_curve;
+use crate::common::path_collision::{approximate_curve, approximate_quad};
 use crate::common::svg_command::{Curve, End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
@@ -86,8 +86,8 @@ impl Letter {
                 .flat_map(|x| match x {
                     SVGPathCommand::Move(_) => vec![],
                     SVGPathCommand::Line(l) => vec![*l],
-                    SVGPathCommand::QuadCurve(q) => approximate_curve(q),
-                    SVGPathCommand::Curve(_c) => unimplemented!("curve"),
+                    SVGPathCommand::QuadCurve(q) => approximate_quad(q),
+                    SVGPathCommand::Curve(c) => approximate_curve(c),
                     SVGPathCommand::End(_) => vec![],
                 })
                 .collect::<Vec<Line<f32>>>(),
@@ -123,10 +123,10 @@ impl Letter {
 
     pub(crate) fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
         self.state.push(SVGPathCommand::Curve(Curve {
-            t2: self.rotation.rotate_point(Point { x: x2, y: y2 }),
-            t1: self.rotation.rotate_point(Point { x: x1, y: y1 }),
-            t: self.rotation.rotate_point(Point { x, y }),
-            p_o: self.cursor,
+            p4: self.rotation.rotate_point(Point { x: x2, y: y2 }),
+            p3: self.rotation.rotate_point(Point { x: x1, y: y1 }),
+            p2: self.rotation.rotate_point(Point { x, y }),
+            p1: self.cursor,
         }));
         self.cursor = self.rotation.rotate_point(Point { x, y });
     }

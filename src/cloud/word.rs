@@ -9,7 +9,7 @@ use swash::zeno::PathData;
 use crate::cloud::letter::Letter;
 use crate::common::font::{Font, FontSet, GuessScript};
 use crate::common::path_collision::collide_line_line;
-use crate::common::svg_command::{End, Line, Move, QuadCurve, SVGPathCommand};
+use crate::common::svg_command::{Curve, End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
@@ -167,7 +167,20 @@ impl<'a> Word<'a> {
                             height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.t1)),
                         ),
                     }),
-                    SVGPathCommand::Curve(_) => unimplemented!(),
+                    SVGPathCommand::Curve(c) => SVGPathCommand::Curve(Curve {
+                        t2: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.t2)),
+                        ),
+                        t1: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.t1)),
+                        ),
+                        t: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.t)),
+                        ),
+                        p_o: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&c.p_o)),
+                        ),
+                    }),
                     SVGPathCommand::End(_) => SVGPathCommand::End(End {}),
                 }
             }

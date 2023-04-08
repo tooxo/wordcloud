@@ -2,6 +2,7 @@ use swash::scale::outline::Outline;
 use swash::scale::ScaleContext;
 use swash::shape::Direction::LeftToRight;
 use swash::shape::ShapeContext;
+use swash::{Setting, Tag};
 
 use swash::zeno::Command;
 use swash::zeno::PathData;
@@ -50,7 +51,18 @@ impl<'a> Word<'a> {
             .direction(LeftToRight)
             .insert_dotted_circles(true)
             .retain_ignorables(true)
-            .features(used_font.supported_features())
+            // .features(used_font.supported_features())
+            .features(&[
+                ("lnum", 1),
+                ("tnum", 1),
+                ("pnum", 1),
+                ("ordn", 1),
+                ("swsh", 1),
+                ("liga", 1),
+                ("hlig", 1),
+                ("dlig", 1),
+                ("calt", 1),
+            ])
             .build();
 
         let mut scale = ScaleContext::new();

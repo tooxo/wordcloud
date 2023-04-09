@@ -26,6 +26,7 @@ jobs:
         run: cargo test --verbose
       - name: publish crates
         uses: katyo/publish-crates@v2
+        if: false
         with:
           dry-run: ${{ github.event_name != 'push' }}
           registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}

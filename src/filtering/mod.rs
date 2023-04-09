@@ -1,5 +1,7 @@
 pub mod clean;
-pub mod stop_words;
+mod stop_words;
+
+pub use stop_words::StopWords;
 
 const ILLEGAL_CHARS: &[char] = &[
     ',', '.', '?', '!', '-', '_', '\'', ':', '!', '"', '#', '$', '%', '&', '(', ')', '*', '+', '/',

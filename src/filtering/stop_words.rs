@@ -16,15 +16,11 @@ impl StopWords {
     pub fn is_included(&self, word: &str) -> bool {
         let scripts = StopWords::used_scripts(word);
         let l: String = word.trim().to_lowercase();
-        for unicode_script in &scripts {
-            if let Some(mi) = self.stop_word_map.get(unicode_script) {
-                if mi.contains(&l) {
-                    return true;
-                }
-            }
-        }
-
-        false
+        scripts
+            .iter()
+            .filter_map(|s| self.stop_word_map.get(s))
+            .map(|mi| mi.contains(&l))
+            .any(|x| x)
     }
 
     pub fn new() -> Self {
@@ -49,21 +45,34 @@ impl StopWords {
         }
     }
 
-    pub fn add_words<'a>(mut self, words: impl Iterator<Item = &'a str>) -> Self {
-        self.append_words(words);
-        self
-    }
-
     pub fn append_file(&mut self, filename: &str) {
         let contents = read_string_from_file(filename);
-
         let iter = contents.split_whitespace();
 
         self.append_words(iter)
     }
+}
 
-    pub fn add_file(mut self, filename: &str) -> Self {
-        self.append_file(filename);
-        self
+#[cfg(feature = "stopwords")]
+use include_dir::{include_dir, Dir};
+
+#[cfg(feature = "stopwords")]
+impl Default for StopWords {
+    fn default() -> Self {
+        static DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/assets/stopwords-json");
+
+        let mut sw = StopWords::new();
+
+        for x in DIR.find("*.txt").unwrap() {
+            sw.append_words(
+                x.as_file()
+                    .unwrap()
+                    .contents_utf8()
+                    .unwrap()
+                    .split_whitespace(),
+            );
+        }
+
+        sw
     }
 }

@@ -107,13 +107,14 @@ pub(crate) fn debug_text(
         .set("height", dimensions.height())
         .set("width", dimensions.width());
 
-    let fonts_to_embed = entries
-        .iter()
-        .map(|x| x.value_ref().used_font)
-        .unique();
+    let fonts_to_embed = entries.iter().map(|x| x.value_ref().used_font).unique();
 
     for font in fonts_to_embed {
-        let enc = STANDARD_NO_PAD.encode(font.reference().data);
+        let dt = match font.packed() {
+            None => font.reference().data,
+            Some(s) => s.as_slice(),
+        };
+        let enc = STANDARD_NO_PAD.encode(dt);
         let style = Style::new(format!(
             "@font-face{{\
             font-family: \"{}\";\

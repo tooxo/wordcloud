@@ -1,5 +1,4 @@
-use crate::cloud::word::Word;
-use crate::cloud::Inp;
+use crate::cloud::word::{Inp, Word};
 use crate::common::font::FontSet;
 use crate::image::{average_color_for_rect, canny_algorithm, Dimensions};
 use crate::io::debug::{
@@ -7,35 +6,37 @@ use crate::io::debug::{
 };
 use crate::types::point::Point;
 use crate::types::rect::Rect;
+use crate::types::rotation::Rotation;
 use image::imageops::grayscale;
 use image::{DynamicImage, GenericImageView, Rgba};
 use parking_lot::{Mutex, RwLock};
 use quadtree_rs::area::{Area, AreaBuilder};
 use quadtree_rs::entry::Entry;
 use quadtree_rs::Quadtree;
-use rand::rngs::SmallRng;
-use rand::{random, thread_rng, Rng, SeedableRng};
-use rayon::iter::IndexedParallelIterator;
+use rand::thread_rng;
+use rand::Rng;
 use rayon::iter::ParallelIterator;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator};
-
-use crate::types::rotation::Rotation;
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator};
 use std::sync::Arc;
 use svg::node::element::Path;
 use svg::{Document, Node};
 
 const QUADTREE_DIVISOR: f32 = 4.;
-const PROCESSING_SLICES: usize = 8; /*match std::thread::available_parallelism() {
-                                        Ok(par) => usize::from(par),
-                                        Err(_) => 4,
-                                    };*/
+
+macro_rules! available_parallelism {
+    () => {
+        match std::thread::available_parallelism() {
+            Ok(par) => usize::from(par),
+            Err(_) => 4,
+        }
+    };
+}
 
 pub struct WordCloud<'a> {
     ct: Arc<RwLock<Quadtree<u64, Word<'a>>>>,
     bg: Option<Quadtree<u64, ()>>,
     bg_image: Option<&'a DynamicImage>,
     dimensions: Dimensions,
-    random: Mutex<SmallRng>,
     font: &'a FontSet<'a>,
 }
 
@@ -54,7 +55,6 @@ impl<'a> WordCloud<'a> {
             bg: None,
             bg_image: None,
             dimensions,
-            random: Mutex::new(SmallRng::from_entropy()),
             font,
         }
     }
@@ -195,13 +195,10 @@ impl<'a> WordCloud<'a> {
             }
 
             if iters % 10 == 0 && iters > 0 {
-                let mut lck = self.random.lock();
                 let new_pos = Point {
-                    x: lck.gen_range(0.0..self.dimensions.width() as f32),
-                    y: lck.gen_range(0.0..self.dimensions.height() as f32),
+                    x: thread_rng().gen_range(0.0..self.dimensions.width() as f32),
+                    y: thread_rng().gen_range(0.0..self.dimensions.height() as f32),
                 };
-
-                drop(lck);
 
                 iters += 1;
 
@@ -235,10 +232,10 @@ impl<'a> WordCloud<'a> {
 
                 word = Word::build(
                     word.text.as_str(),
-                    &self.font,
+                    self.font,
                     word.scale - 2.,
                     word.offset,
-                    if random() {
+                    if rand::random() {
                         Rotation::Zero
                     } else {
                         Rotation::TwoSeventy
@@ -260,12 +257,13 @@ impl<'a> WordCloud<'a> {
             self.add_word(word);
         }
     }
+
     pub(crate) fn put_text(&self, inp: Vec<Word<'a>>) {
-        let xl = (0..PROCESSING_SLICES)
+        let xl = (0..available_parallelism!())
             .map(|n| {
                 inp.iter()
                     .skip(n)
-                    .step_by(PROCESSING_SLICES)
+                    .step_by(available_parallelism!())
                     .cloned()
                     .collect::<Vec<Word>>()
             })
@@ -274,13 +272,13 @@ impl<'a> WordCloud<'a> {
         xl.into_par_iter().for_each(|wl| self.put_text_sync(wl));
     }
 
-    pub(crate) fn write_to_file(&self, filename: &str) {
+    pub fn write_to_file(&self, filename: &str) {
         let ct = self.ct.read();
         let collected_entries: Vec<&Word> = ct.iter().map(|x| x.value_ref()).collect();
 
-        let sliced = collected_entries
-            .par_iter()
-            .chunks((collected_entries.len() as f64 / PROCESSING_SLICES as f64).ceil() as usize);
+        let sliced = collected_entries.par_iter().chunks(
+            (collected_entries.len() as f64 / available_parallelism!() as f64).ceil() as usize,
+        );
 
         let doc_mutex = Arc::new(Mutex::new(
             Document::new()
@@ -334,6 +332,10 @@ impl<'a> WordCloud<'a> {
     }
 }
 
+/**
+Builder for [WordCloud]
+ */
+#[derive(Default)]
 pub struct WordCloudBuilder<'a> {
     dimensions: Option<Dimensions>,
     font: Option<&'a FontSet<'a>>,
@@ -342,32 +344,41 @@ pub struct WordCloudBuilder<'a> {
 
 impl<'a> WordCloudBuilder<'a> {
     pub fn new() -> Self {
-        WordCloudBuilder {
-            dimensions: None,
-            font: None,
-            image: None,
-        }
+        WordCloudBuilder::default()
     }
 
+    /**
+    Output dimensions of the created image
+     */
     pub fn dimensions(mut self, dimensions: Dimensions) -> Self {
         self.dimensions = Some(dimensions);
         self
     }
 
+    /**
+    Used [`FontSet`], see [`FontSet`] for more information
+     */
     pub fn font(mut self, font: &'a FontSet<'a>) -> Self {
         self.font = Some(font);
         self
     }
 
+    /**
+    Optional: Image, which is used for border detection
+     */
     pub fn image(mut self, image: &'a DynamicImage) -> Self {
         self.image = Some(image);
         self
     }
 
-    pub fn build(self) -> Result<WordCloud<'a>, ()> {
+    /**
+    Build the [`WordCloud`], basically free, no calculations are done here
+     */
+    pub fn build(self) -> Result<WordCloud<'a>, String> {
         let mut wc = match (self.dimensions, self.font) {
             (Some(d), Some(f)) => WordCloud::new(d, f),
-            _ => return Err(()),
+            (_, None) => return Err("Missing FontSet in WordCloudBuilder!".into()),
+            (None, _) => return Err("Missing Dimensions in WordCloudBuilder!".into()),
         };
 
         if let Some(i) = self.image {
@@ -384,12 +395,12 @@ pub(crate) fn create_word_cloud(
     inp: Vec<Inp>,
     background_image: &DynamicImage,
 ) {
-    let mut words = (0..PROCESSING_SLICES)
+    let mut words = (0..available_parallelism!())
         .into_par_iter()
         .map(|n| {
             inp.iter()
                 .skip(n)
-                .step_by(PROCESSING_SLICES)
+                .step_by(available_parallelism!())
                 .collect::<Vec<&Inp>>()
         })
         .map(|inputs| {
@@ -414,7 +425,13 @@ pub(crate) fn create_word_cloud(
     words.sort_by_key(|x| x.scale as usize);
     words.reverse();
 
-    let (first, second) = words.split_at(20);
+    let em: &[Word] = &[];
+
+    let (first, second) = if words.len() > 20 {
+        words.split_at(20)
+    } else {
+        (words.as_slice(), em)
+    };
 
     let wc = WordCloudBuilder::new()
         .dimensions(dimensions)

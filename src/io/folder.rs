@@ -2,14 +2,17 @@ use std::fs::{canonicalize, read_dir};
 use std::iter::FusedIterator;
 use std::path::{Path, PathBuf};
 
-pub struct RecursiveFolderIterator<'a> {
+/**
+Recursively iterates through items in the given folder, which match the given filter
+ */
+pub struct RecursiveFolderIterator {
     folder: Vec<PathBuf>,
     file: Vec<PathBuf>,
-    filter_fn: &'a dyn Fn(&PathBuf) -> bool,
+    filter_fn: fn(&Path) -> bool,
 }
 
-impl<'a> RecursiveFolderIterator<'a> {
-    pub fn new(folder: &Path, filter: &'a dyn Fn(&PathBuf) -> bool) -> Self {
+impl RecursiveFolderIterator {
+    pub fn new(folder: &Path, filter: fn(&Path) -> bool) -> Self {
         RecursiveFolderIterator {
             folder: vec![folder.canonicalize().unwrap()],
             file: Vec::new(),
@@ -18,13 +21,13 @@ impl<'a> RecursiveFolderIterator<'a> {
     }
 }
 
-impl<'a> Iterator for RecursiveFolderIterator<'a> {
+impl Iterator for RecursiveFolderIterator {
     type Item = PathBuf;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             while let Some(file) = self.file.pop() {
-                if (self.filter_fn)(&file) {
+                if (self.filter_fn)(file.as_path()) {
                     return Some(file);
                 }
             }
@@ -49,4 +52,4 @@ impl<'a> Iterator for RecursiveFolderIterator<'a> {
     }
 }
 
-impl<'a> FusedIterator for RecursiveFolderIterator<'a> {}
+impl FusedIterator for RecursiveFolderIterator {}

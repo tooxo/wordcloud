@@ -1,20 +1,17 @@
 use crate::cloud::word::Inp;
-
 use crate::cloud::word_cloud::create_word_cloud;
+use crate::common::font::Font;
 use crate::image::Dimensions;
 use crate::types::rotation::Rotation;
-
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-
-use crate::common::font::Font;
 
 use crate::common::font::FontSetBuilder;
 
-use crate::rank::Word;
-
 pub(crate) mod letter;
 pub(crate) mod word;
-mod word_cloud;
+pub(crate) mod word_cloud;
+
+pub use crate::cloud::word_cloud::{WordCloud, WordCloudBuilder};
 
 #[allow(dead_code)]
 fn create_placeholder_words() -> Vec<Inp> {
@@ -223,7 +220,7 @@ fn create_placeholder_words() -> Vec<Inp> {
         "warm",
     ];
 
-    for _ in 0..30 {
+    for _ in 0..20 {
         inp.push(Inp {
             text: words[random.gen_range(0..words.len())].parse().unwrap(),
             scale: random.gen_range(130..160) as f32,
@@ -260,12 +257,13 @@ fn create_placeholder_words() -> Vec<Inp> {
     inp
 }
 
-pub fn create_image(input_words_counted: Vec<Word>) {
-    let font_bts = include_bytes!("../../assets/OpenSans-Regular.ttf") as &[u8];
+pub fn create_image(input_words_counted: Vec<crate::rank::Word>) {
+    let mut font_bts =
+        Vec::from(include_bytes!("../../assets/lato-v23-latin-regular.woff2") as &[u8]);
     let test_image = include_bytes!("../../assets/circ.png") as &[u8];
 
     let font_set = FontSetBuilder::new()
-        .add_font(Font::from_data("OpenSans".to_string(), font_bts))
+        .push(Font::from_data(&mut font_bts))
         .build();
 
     let image = image::load_from_memory(test_image).expect("image load failed");
@@ -279,9 +277,7 @@ pub fn create_image(input_words_counted: Vec<Word>) {
         .sum::<f32>()
         / words as f32;
 
-    dbg!(max);
-
-    let _inp: Vec<Inp> = input_words_counted
+    let inp: Vec<Inp> = input_words_counted
         .iter()
         .take(2000)
         .map(|w| Inp {
@@ -290,16 +286,6 @@ pub fn create_image(input_words_counted: Vec<Word>) {
             rotation: Rotation::Zero,
         })
         .collect();
-
-    let inp = create_placeholder_words();
-    /*let inp = vec![
-        Inp{
-            text: "aaaa".to_string(),
-            scale: 90.0,
-            rotation: Rotation::Ninety,
-        }
-    ];*/
-    dbg!(inp.len());
 
     create_word_cloud(output_dimensions, font_set, inp, &image);
 }

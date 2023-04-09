@@ -1,3 +1,5 @@
 pub(crate) mod debug;
 pub mod file;
-pub mod folder;
+mod folder;
+
+pub use crate::io::folder::RecursiveFolderIterator;

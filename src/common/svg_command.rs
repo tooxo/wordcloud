@@ -246,13 +246,12 @@ impl SvgCommand for End {
 }
 
 impl QuadCurve {
-    pub(crate) fn divide_quad(&self, parts: usize) -> Vec<Point<f32>> {
-        let v = vec![parts; parts];
-        v.iter()
-            .enumerate()
-            .map(|(i, &x)| (1.0 / (x as f32)) * i as f32)
+    pub(crate) fn divide_quad(&self, center_points: usize) -> Vec<Point<f32>> {
+        let points = center_points + 2;
+        (0..points)
+            .map(|i| (1. / (points - 1) as f32) * i as f32)
             .map(|x| self.get_point_on_curve(x))
-            .collect::<Vec<Point<f32>>>()
+            .collect()
     }
 
     /// See https://www.geogebra.org/m/YGqtDGzK

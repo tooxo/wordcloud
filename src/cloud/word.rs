@@ -2,7 +2,6 @@ use swash::scale::outline::Outline;
 use swash::scale::ScaleContext;
 use swash::shape::Direction::LeftToRight;
 use swash::shape::ShapeContext;
-use swash::{Setting, Tag};
 
 use swash::zeno::Command;
 use swash::zeno::PathData;
@@ -294,10 +293,10 @@ impl<'a> Word<'a> {
 
             let (mut col_h, mut col_l) = (0, 0);
             for collidable in right_collidables {
-                if collide_line_line(&collidable, &high_line).is_some() {
+                if collide_line_line(&collidable, &high_line) {
                     col_h += 1;
                 }
-                if collide_line_line(&collidable, &low_line).is_some() {
+                if collide_line_line(&collidable, &low_line) {
                     col_l += 1;
                 }
             }

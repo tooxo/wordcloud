@@ -259,7 +259,7 @@ fn create_placeholder_words() -> Vec<Inp> {
 
 pub fn create_image(input_words_counted: Vec<crate::rank::Word>) {
     let mut font_bts =
-        Vec::from(include_bytes!("../../assets/lato-v23-latin-regular.woff2") as &[u8]);
+        Vec::from(include_bytes!("../../assets/OpenSans-Regular.ttf") as &[u8]);
     let test_image = include_bytes!("../../assets/circ.png") as &[u8];
 
     let font_set = FontSetBuilder::new()

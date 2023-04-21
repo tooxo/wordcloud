@@ -1,24 +1,27 @@
 use crate::cloud::word::{Inp, Word};
 use crate::common::font::FontSet;
+
 use crate::image::{average_color_for_rect, canny_algorithm, Dimensions};
-use crate::io::debug::{
-    debug_background_collision, debug_background_on_result, debug_collidables, debug_text,
-};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
+use base64::engine::general_purpose::STANDARD_NO_PAD;
+use base64::Engine;
 use image::imageops::grayscale;
 use image::{DynamicImage, GenericImageView, Rgba};
+use itertools::Itertools;
 use parking_lot::{Mutex, RwLock};
 use quadtree_rs::area::{Area, AreaBuilder};
-use quadtree_rs::entry::Entry;
+
 use quadtree_rs::Quadtree;
 use rand::thread_rng;
 use rand::Rng;
 use rayon::iter::ParallelIterator;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator};
+
 use std::sync::Arc;
-use svg::node::element::Path;
+
+use svg::node::element::{Group, Path, Rectangle, Style, Text};
 use svg::{Document, Node};
 
 const QUADTREE_DIVISOR: f32 = 4.;
@@ -33,7 +36,7 @@ macro_rules! available_parallelism {
 }
 
 pub struct WordCloud<'a> {
-    ct: Arc<RwLock<Quadtree<u64, Word<'a>>>>,
+    ct: RwLock<Quadtree<u64, Word<'a>>>,
     bg: Option<Quadtree<u64, ()>>,
     bg_image: Option<&'a DynamicImage>,
     dimensions: Dimensions,
@@ -49,9 +52,9 @@ impl<'a> WordCloud<'a> {
 
     fn new(dimensions: Dimensions, font: &'a FontSet<'a>) -> Self {
         WordCloud {
-            ct: Arc::new(RwLock::new(Quadtree::new(
-                WordCloud::needed_tree_depth(dimensions) as usize,
-            ))),
+            ct: RwLock::new(Quadtree::new(
+                WordCloud::needed_tree_depth(dimensions) as usize
+            )),
             bg: None,
             bg_image: None,
             dimensions,
@@ -161,7 +164,7 @@ impl<'a> WordCloud<'a> {
                     let read = self.ct.read();
                     len_bf = read.len();
                     for result in read.query(search_region) {
-                        if word.word_intersect(result.value_ref()).is_some() {
+                        if word.word_intersect(result.value_ref()) {
                             intersected = true;
                             break;
                         }
@@ -176,7 +179,7 @@ impl<'a> WordCloud<'a> {
                     // read the newly added handles
                     for handle_id in len_bf..=write.len() {
                         if let Some(new_entry) = write.get(handle_id as u64) {
-                            if word.word_intersect(new_entry.value_ref()).is_some() {
+                            if word.word_intersect(new_entry.value_ref()) {
                                 intersected = true;
                                 break;
                             }
@@ -332,6 +335,182 @@ impl<'a> WordCloud<'a> {
     }
 }
 
+impl<'a> WordCloud<'a> {
+    fn debug_background_collision(&self, filename: &str) {
+        let mut document = Document::new()
+            .set(
+                "viewBox",
+                (0, 0, self.dimensions.width(), self.dimensions.height()),
+            )
+            .set("height", self.dimensions.height())
+            .set("width", self.dimensions.width());
+
+        let colors = vec![
+            "black", "gray", "silver", "maroon", "red", "purple", "fuchsia", "green", "lime",
+            "olive", "yellow", "navy", "blue", "teal", "aqua",
+        ];
+        if let Some(i) = self.bg.as_ref() {
+            for bound in i.iter() {
+                let random_color = colors[thread_rng().gen_range(0..colors.len())];
+
+                let rec = Rectangle::new()
+                    .set("x", bound.anchor().x as f32 * QUADTREE_DIVISOR)
+                    .set("y", bound.anchor().y as f32 * QUADTREE_DIVISOR)
+                    .set("width", bound.area().width() as f32 * QUADTREE_DIVISOR)
+                    .set("height", bound.area().height() as f32 * QUADTREE_DIVISOR)
+                    .set("stroke", "black")
+                    .set("stroke-width", "1px")
+                    .set("fill", random_color);
+
+                document.append(rec);
+            }
+        }
+
+        svg::save(filename, &document).unwrap();
+    }
+    fn debug_result_on_background(&self, filename: &str) {
+        let mut document = Document::new()
+            .set(
+                "viewBox",
+                (0, 0, self.dimensions.width(), self.dimensions.height()),
+            )
+            .set("height", self.dimensions.height())
+            .set("width", self.dimensions.width());
+
+        if let Some(i) = self.bg.as_ref() {
+            for bound in i.iter() {
+                let rec = Rectangle::new()
+                    .set("x", bound.anchor().x as f32 * QUADTREE_DIVISOR)
+                    .set("y", bound.anchor().y as f32 * QUADTREE_DIVISOR)
+                    .set("width", bound.area().width() as f32 * QUADTREE_DIVISOR)
+                    .set("height", bound.area().height() as f32 * QUADTREE_DIVISOR);
+
+                document.append(rec);
+            }
+        }
+
+        for word in self.ct.read().iter() {
+            let p = Path::new()
+                .set("d", word.value_ref().d())
+                .set("stoke", "none")
+                .set("fill", "gray");
+            document.append(p);
+        }
+
+        svg::save(filename, &document).unwrap();
+    }
+
+    fn debug_collidables(&self, filename: &str) {
+        let mut document = Document::new()
+            .set(
+                "viewBox",
+                (0, 0, self.dimensions.width(), self.dimensions.height()),
+            )
+            .set("height", self.dimensions.height())
+            .set("width", self.dimensions.width());
+
+        for x in self.ct.read().iter() {
+            let w = x.value_ref();
+            for glyph in &w.glyphs {
+                for x in glyph.absolute_collidables(&w.rotation, w.offset) {
+                    let p = Path::new()
+                        .set("stroke", "black")
+                        .set("stroke-width", 1)
+                        .set(
+                            "d",
+                            format!("M {} {} L {} {} Z", x.start.x, x.start.y, x.end.x, x.end.y),
+                        );
+                    document.append(p);
+                }
+
+                let r = glyph.relative_bounding_box(&w.rotation) + w.offset;
+                let p = Rectangle::new()
+                    .set("stroke", "green")
+                    .set("stroke-width", 1)
+                    .set("fill", "none")
+                    .set("x", r.min.x)
+                    .set("y", r.min.y)
+                    .set("width", r.width())
+                    .set("height", r.height());
+
+                document.append(p);
+            }
+
+            document.append(
+                Rectangle::new()
+                    .set("stroke", "red")
+                    .set("stroke-width", 1)
+                    .set("fill", "none")
+                    .set("x", w.bounding_box.min.x)
+                    .set("y", w.bounding_box.min.y)
+                    .set("width", w.bounding_box.width())
+                    .set("height", w.bounding_box.height()),
+            )
+        }
+
+        svg::save(filename, &document).unwrap();
+    }
+
+    fn debug_text(&self, filename: &str) {
+        let mut document = Document::new()
+            .set(
+                "viewBox",
+                (0, 0, self.dimensions.width(), self.dimensions.height()),
+            )
+            .set("height", self.dimensions.height())
+            .set("width", self.dimensions.width());
+
+        let read_lock = self.ct.read();
+        for (font, group) in &read_lock
+            .iter()
+            .map(|y| y.value_ref())
+            .group_by(|k| k.used_font)
+        {
+            let dt = match font.packed() {
+                None => font.reference().data,
+                Some(s) => s.as_slice(),
+            };
+            let enc = STANDARD_NO_PAD.encode(dt);
+            document.append(Style::new(format!(
+                "@font-face{{font-family:\"{}\";src:url(\"data:{};charset=utf-8;base64,{}\");}}",
+                font.name(),
+                font.font_type().embed_tag(),
+                enc
+            )));
+
+            let mut gr = Group::new().set("font-family", font.name());
+
+            for word in group {
+                let mut t = Text::new()
+                    .set("x", word.offset.x)
+                    .set("y", word.offset.y)
+                    .set("font-size", word.scale);
+                match word.rotation {
+                    Rotation::Zero => (),
+                    Rotation::Ninety | Rotation::OneEighty | Rotation::TwoSeventy => {
+                        t.assign(
+                            "style",
+                            format!(
+                                "transform: rotate({}deg); transform-origin: {}px {}px",
+                                word.rotation.inner(),
+                                word.offset.x,
+                                word.offset.y
+                            ),
+                        );
+                    }
+                }
+                t.append(svg::node::Text::new(&word.text));
+
+                gr.append(t);
+            }
+
+            document.append(gr);
+        }
+
+        svg::save(filename, &document).unwrap();
+    }
+}
+
 /**
 Builder for [WordCloud]
  */
@@ -446,28 +625,15 @@ pub(crate) fn create_word_cloud(
 
     if true {
         println!("Dumping Debug Files");
-        let ct = wc.ct.read();
-        let entries: Vec<&Entry<u64, Word>> = ct.iter().collect();
 
         if !std::path::Path::new("debug").is_dir() {
             std::fs::create_dir("debug").unwrap();
         }
-        if let Some(bg) = wc.bg {
-            debug_background_collision(
-                "debug/background_collision.svg",
-                bg.iter().collect::<Vec<&Entry<u64, ()>>>(),
-                QUADTREE_DIVISOR,
-                dimensions,
-            );
-            debug_background_on_result(
-                "debug/text_on_background.svg",
-                &entries,
-                &bg.iter().collect::<Vec<&Entry<u64, ()>>>(),
-                QUADTREE_DIVISOR,
-                dimensions,
-            );
+        if wc.bg.is_some() {
+            wc.debug_background_collision("debug/background_collision.svg");
+            wc.debug_result_on_background("debug/result_on_background.svg");
         }
-        debug_collidables("debug/collidables.svg", &entries, dimensions);
-        debug_text("debug/text.svg", &entries, dimensions, &font);
+        wc.debug_collidables("debug/collidables.svg");
+        wc.debug_text("debug/text.svg");
     }
 }

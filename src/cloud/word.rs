@@ -168,14 +168,14 @@ impl<'a> Word<'a> {
                         ),
                     }),
                     SVGPathCommand::QuadCurve(q) => SVGPathCommand::QuadCurve(QuadCurve {
-                        p_o: glyph.rotation.rotate_point(
-                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.p_o)),
+                        s: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.s)),
                         ),
-                        t: glyph.rotation.rotate_point(
-                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.t)),
+                        e: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.e)),
                         ),
-                        t1: glyph.rotation.rotate_point(
-                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.t1)),
+                        c1: glyph.rotation.rotate_point(
+                            height_pt.sub_ly(&glyph.rotation.rotate_point_back(&q.c1)),
                         ),
                     }),
                     SVGPathCommand::Curve(c) => SVGPathCommand::Curve(Curve {
@@ -263,9 +263,9 @@ impl<'a> Word<'a> {
         self.glyphs.iter().map(|g| g.d(&self.offset)).collect()
     }
 
-    pub(crate) fn word_intersect(&self, other: &Word) -> Option<Point<f32>> {
+    pub(crate) fn word_intersect(&self, other: &Word) -> bool {
         if !self.bounding_box.extend(5.0).overlaps(&other.bounding_box) {
-            return None;
+            return false;
         }
 
         let right_collidables = other.collidables();
@@ -303,21 +303,20 @@ impl<'a> Word<'a> {
 
             if col_h % 2 == 1 || col_l % 2 == 1 {
                 // its inside the text
-                return Some(Point::default());
+                return true;
             }
         }
 
-        // let own_collidables = self.collidables().collect::<Vec<Line<f32>>>();
+        let extended = self.bounding_box.extend(2.0);
         for glyph in &other.glyphs {
-            let bbox = glyph.relative_bounding_box(&other.rotation) + other.offset;
-            if self.bounding_box.overlaps(&bbox) {
+            if extended.overlaps(&(glyph.relative_bounding_box(&other.rotation) + other.offset)) {
                 for l in glyph.absolute_collidables(&other.rotation, other.offset) {
-                    if self.bounding_box.extend(5.0).intersects(&l) {
-                        return Some(Point::default());
+                    if extended.intersects(&l) {
+                        return true;
                     }
                 }
             }
         }
-        None
+        false
     }
 }

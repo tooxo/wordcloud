@@ -1,8 +1,9 @@
+use crate::common::path_collision::collide_line_line;
 use crate::common::svg_command::Line;
 use crate::types::point::Point;
 use num_traits::PrimInt;
 use quadtree_rs::area::{Area, AreaBuilder};
-use std::ops::{Add, Sub};
+use std::ops::{Add, Mul, Sub};
 
 #[derive(Copy, Clone, Debug)]
 pub struct Rect<T> {
@@ -82,15 +83,26 @@ where
             && self.max.y >= other.max.y
     }
 
-    pub(crate) fn intersects(&self, other: &Line<T>) -> bool {
-        if (other.start.x <= self.min.x && other.end.x <= self.min.x)
-            || (other.start.y <= self.min.y && other.end.y <= self.min.y)
-            || (other.start.x >= self.max.x && other.end.x >= self.max.x)
-            || (other.start.y >= self.max.y && other.end.y >= self.max.y)
-        {
-            return false;
+    pub(crate) fn intersects(&self, other: &Line<T>) -> bool
+    where
+        T: Copy + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+    {
+        if self.includes_line(other) {
+            return true;
         }
-        true
+        for n in &self.lines() {
+            if collide_line_line(n, other) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub(crate) fn includes_line(&self, other: &Line<T>) -> bool {
+        self.min.full_le(&other.start)
+            && self.min.full_le(&other.end)
+            && self.max.full_ge(&other.start)
+            && self.max.full_ge(&other.end)
     }
 
     pub(crate) fn is_normal(&self) -> bool {
@@ -192,6 +204,20 @@ where
 
     pub(crate) fn height(&self) -> T {
         self.max.y - self.min.y
+    }
+}
+
+impl<T> Rect<T>
+where
+    T: Copy,
+{
+    pub(crate) fn lines(&self) -> [Line<T>; 4] {
+        [
+            (self.min, (self.max.x, self.min.y).into()).into(),
+            (self.min, (self.min.x, self.max.y).into()).into(),
+            (self.max, (self.min.x, self.max.y).into()).into(),
+            (self.max, (self.max.x, self.min.y).into()).into(),
+        ]
     }
 }
 

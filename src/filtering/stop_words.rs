@@ -7,20 +7,21 @@ pub struct StopWords {
 }
 
 impl StopWords {
-    fn used_scripts(word: &str) -> HashSet<Script> {
-        word.chars()
-            .map(|c| c.script())
-            .collect::<HashSet<Script>>()
+    fn used_script(word: &str) -> Script {
+        match word.chars().next() {
+            None => Script::Unknown,
+            Some(c) => c.script(),
+        }
     }
 
     pub fn is_included(&self, word: &str) -> bool {
-        let scripts = StopWords::used_scripts(word);
+        let script = StopWords::used_script(word);
         let l: String = word.trim().to_lowercase();
-        scripts
-            .iter()
-            .filter_map(|s| self.stop_word_map.get(s))
-            .map(|mi| mi.contains(&l))
-            .any(|x| x)
+        let words = self.stop_word_map.get(&script);
+        match words {
+            None => false,
+            Some(w) => w.contains(&l),
+        }
     }
 
     pub fn new() -> Self {
@@ -33,15 +34,14 @@ impl StopWords {
         let filtered_words = words
             .map(|x| x.trim().to_lowercase())
             .filter(|x| !x.is_empty())
-            .map(|x| (StopWords::used_scripts(&x), x));
+            .map(|x| (StopWords::used_script(&x), x));
 
-        for (scripts, word) in filtered_words {
-            for sc in &scripts {
-                if !self.stop_word_map.contains_key(sc) {
-                    self.stop_word_map.insert(*sc, HashSet::new());
-                }
-                self.stop_word_map.get_mut(sc).unwrap().insert(word.clone());
-            }
+        for (script, word) in filtered_words {
+            let entry = self
+                .stop_word_map
+                .entry(script)
+                .or_insert_with(HashSet::new);
+            entry.insert(word.clone());
         }
     }
 

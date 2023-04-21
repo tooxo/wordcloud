@@ -1,16 +1,26 @@
 use crate::common::svg_command::{Curve, Line, QuadCurve};
 use crate::types::point::Point;
 use itertools::Itertools;
+use std::ops::{Mul, Sub};
 
-fn ccw(a: Point<f32>, b: Point<f32>, c: Point<f32>) -> bool {
+fn ccw<T>(a: Point<T>, b: Point<T>, c: Point<T>) -> bool
+where
+    T: Copy + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+{
     (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x)
 }
 
-fn i(a: Point<f32>, b: Point<f32>, c: Point<f32>, d: Point<f32>) -> bool {
+fn i<T>(a: Point<T>, b: Point<T>, c: Point<T>, d: Point<T>) -> bool
+where
+    T: Copy + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+{
     ccw(a, c, d) != ccw(b, c, d) && ccw(a, b, c) != ccw(a, b, d)
 }
 
-pub(crate) fn collide_line_line(a: &Line<f32>, b: &Line<f32>) -> bool {
+pub(crate) fn collide_line_line<T>(a: &Line<T>, b: &Line<T>) -> bool
+where
+    T: Copy + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+{
     i(a.start, a.end, b.start, b.end)
 }
 

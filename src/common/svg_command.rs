@@ -51,6 +51,27 @@ pub(crate) struct Line<T> {
     pub(crate) end: Point<T>,
 }
 
+impl<T> From<(Point<T>, Point<T>)> for Line<T> {
+    fn from(value: (Point<T>, Point<T>)) -> Self {
+        Line {
+            start: value.0,
+            end: value.1,
+        }
+    }
+}
+
+impl<T> From<(&Point<T>, &Point<T>)> for Line<T>
+where
+    T: Copy,
+{
+    fn from(value: (&Point<T>, &Point<T>)) -> Self {
+        Line {
+            start: *value.0,
+            end: *value.1,
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub(crate) struct Parallelogram<T> {
     p1: Point<T>,
@@ -93,9 +114,9 @@ pub(crate) struct Move {
 
 #[derive(Debug, Clone)]
 pub(crate) struct QuadCurve {
-    pub(crate) t1: Point<f32>,
-    pub(crate) t: Point<f32>,
-    pub(crate) p_o: Point<f32>,
+    pub(crate) c1: Point<f32>,
+    pub(crate) e: Point<f32>,
+    pub(crate) s: Point<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -199,13 +220,13 @@ impl SvgCommand for Move {
 impl SvgCommand for QuadCurve {
     fn append_to_string(&self, offset: &Point<f32>, string: &mut String) {
         string.push_str("Q ");
-        string.push_str(format_float!(self.t1.x + offset.x));
+        string.push_str(format_float!(self.c1.x + offset.x));
         string.push(' ');
-        string.push_str(format_float!(self.t1.y + offset.y));
+        string.push_str(format_float!(self.c1.y + offset.y));
         string.push(',');
-        string.push_str(format_float!(self.t.x + offset.x));
+        string.push_str(format_float!(self.e.x + offset.x));
         string.push(' ');
-        string.push_str(format_float!(self.t.y + offset.y))
+        string.push_str(format_float!(self.e.y + offset.y))
     }
 
     fn length_estimation(&self) -> usize {
@@ -257,15 +278,11 @@ impl QuadCurve {
     /// See https://www.geogebra.org/m/YGqtDGzK
     fn get_point_on_curve(&self, t: f32) -> Point<f32> {
         // F = D + t(E - D)
-        // D = A + t(B - A)
-        // E = B + t(C - B)
+        // D = S + t(C - S)
+        // E = C + t(End - C)
 
-        // A = p_o
-        // B = t
-        // C = t1
-
-        let d = self.p_o + (self.t - self.p_o) * t;
-        let e = self.t + (self.t1 - self.t) * t;
+        let d = self.s + (self.c1 - self.s) * t;
+        let e = self.c1 + (self.e - self.c1) * t;
 
         d + (e - d) * t
     }

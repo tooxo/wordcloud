@@ -114,9 +114,9 @@ impl Letter {
 
     pub(crate) fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
         self.state.push(SVGPathCommand::QuadCurve(QuadCurve {
-            t1: self.rotation.rotate_point(Point { x: x1, y: y1 }),
-            t: self.rotation.rotate_point(Point { x, y }),
-            p_o: self.cursor,
+            c1: self.rotation.rotate_point(Point { x: x1, y: y1 }),
+            e: self.rotation.rotate_point(Point { x, y }),
+            s: self.cursor,
         }));
         self.cursor = self.rotation.rotate_point(Point { x, y });
     }

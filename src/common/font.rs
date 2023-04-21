@@ -3,6 +3,7 @@ use std::hash::{Hash, Hasher};
 
 use std::sync::Arc;
 use swash::text::Codepoint;
+
 use swash::{FontRef, StringId, Tag};
 
 #[cfg(feature = "woff2")]

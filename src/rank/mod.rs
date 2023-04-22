@@ -1,7 +1,6 @@
 use rayon::iter::IntoParallelIterator;
-use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 
 #[derive(Clone)]
 pub struct Word {
@@ -15,32 +14,10 @@ impl Word {
     }
 }
 
-pub struct RankedWords {}
+pub struct RankedWords(pub Vec<Word>);
 
 impl RankedWords {
-    pub fn rank(v: Vec<String>) {
-        let v_v = v.clone();
-        let mut n = v
-            .into_iter()
-            .collect::<HashSet<String>>()
-            .par_iter()
-            .map(|val| Word {
-                content: val.clone(),
-                count: v_v
-                    .par_iter()
-                    .map(|v2| val.eq(v2))
-                    .filter(|x| *x)
-                    .collect::<Vec<bool>>()
-                    .len(),
-            })
-            .collect::<Vec<Word>>();
-
-        n.sort_by(|w, w2| w.count.cmp(&w2.count));
-
-        println!("-");
-    }
-
-    pub fn rank2(v: Vec<String>) -> Vec<Word> {
+    pub fn rank(v: Vec<String>) -> RankedWords {
         let mut hs: HashMap<String, usize> = HashMap::new();
         for s in v {
             let f = hs.get(&s);
@@ -58,6 +35,6 @@ impl RankedWords {
 
         n.sort_by(|w, w2| w2.count.cmp(&w.count));
 
-        n
+        RankedWords(n)
     }
 }

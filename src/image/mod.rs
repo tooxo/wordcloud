@@ -7,7 +7,7 @@ use image::{DynamicImage, GenericImageView, GrayImage, Rgba};
 pub type Dimensions = Rect<usize>;
 
 impl Dimensions {
-    pub(crate) fn from_wh(width: usize, height: usize) -> Self {
+    pub fn from_wh(width: usize, height: usize) -> Self {
         Rect {
             min: Point::default(),
             max: Point {

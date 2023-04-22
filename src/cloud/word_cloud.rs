@@ -1,7 +1,7 @@
 use crate::cloud::word::{Inp, Word};
 use crate::common::font::FontSet;
 
-use crate::image::{average_color_for_rect, canny_algorithm, Dimensions};
+use crate::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string, Dimensions};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
@@ -21,6 +21,7 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRef
 
 use std::sync::Arc;
 
+use crate::rank::RankedWords;
 use svg::node::element::{Group, Path, Rectangle, Style, Text};
 use svg::{Document, Node};
 
@@ -275,6 +276,92 @@ impl<'a> WordCloud<'a> {
         xl.into_par_iter().for_each(|wl| self.put_text_sync(wl));
     }
 
+    pub fn write_content(&self, content: RankedWords, max_word_count: usize) {
+        let max = content
+            .0
+            .iter()
+            .take(max_word_count)
+            .map(|x| (x.count as f32))
+            .sum::<f32>()
+            / max_word_count as f32;
+
+        let inp: Vec<Inp> = content
+            .0
+            .iter()
+            .take(max_word_count)
+            .map(|w| Inp {
+                text: w.content.to_string(),
+                scale: ((w.count as f32) / max) * 15.,
+                rotation: Rotation::Zero,
+            })
+            .collect();
+
+        let mut words = (0..available_parallelism!())
+            .into_par_iter()
+            .map(|n| {
+                inp.iter()
+                    .skip(n)
+                    .step_by(available_parallelism!())
+                    .collect::<Vec<&Inp>>()
+            })
+            .map(|inputs| {
+                inputs.into_iter().map(|x| {
+                    let left_offs = thread_rng().gen_range(0.0..self.dimensions.width() as f32);
+                    let top_offs = thread_rng().gen_range(0.0..self.dimensions.height() as f32);
+                    Word::build(
+                        &x.text,
+                        self.font,
+                        x.scale,
+                        Point {
+                            x: left_offs,
+                            y: top_offs,
+                        },
+                        x.rotation,
+                    )
+                })
+            })
+            .flatten_iter()
+            .collect::<Vec<Word>>();
+
+        words.sort_by_key(|d| d.scale as u64);
+        words.reverse();
+
+        let em: &[Word] = &[];
+        let (first, second) = if words.len() > 20 {
+            words.split_at(20)
+        } else {
+            (words.as_slice(), em)
+        };
+
+        self.put_text_sync(first.to_vec());
+        self.put_text(second.to_vec());
+    }
+
+    fn get_color_for_word(&self, word: &Word) -> Rgba<u8> {
+        let color = match self.bg_image {
+            None => Rgba([0; 4]),
+            Some(img) => {
+                let multiplier = img.width() as f64
+                    / usize::min(self.dimensions.width(), self.dimensions.height()) as f64;
+
+                let integer_rect = Rect {
+                    min: Point {
+                        x: ((word.bounding_box.min.x as f64) * multiplier) as u32,
+                        y: ((word.bounding_box.min.y as f64) * multiplier) as u32,
+                    },
+                    max: Point {
+                        x: ((word.bounding_box.max.x as f64) * multiplier) as u32,
+                        y: ((word.bounding_box.max.y as f64) * multiplier) as u32,
+                    },
+                };
+
+                average_color_for_rect(img, &integer_rect, Rgba([0, 0, 0, 0]))
+            }
+        };
+
+        color
+    }
+
     pub fn write_to_file(&self, filename: &str) {
         let ct = self.ct.read();
         let collected_entries: Vec<&Word> = ct.iter().map(|x| x.value_ref()).collect();
@@ -293,33 +380,9 @@ impl<'a> WordCloud<'a> {
                 .set("width", self.dimensions.width()),
         ));
 
-        let multiplier = match self.bg_image {
-            None => 1.,
-            Some(img) => {
-                img.width() as f64
-                    / usize::min(self.dimensions.width(), self.dimensions.height()) as f64
-            }
-        };
-
         sliced.for_each(|x| {
             for word in x {
-                let color = match self.bg_image {
-                    None => Rgba([0; 4]),
-                    Some(img) => {
-                        let integer_rect = Rect {
-                            min: Point {
-                                x: ((word.bounding_box.min.x as f64) * multiplier) as u32,
-                                y: ((word.bounding_box.min.y as f64) * multiplier) as u32,
-                            },
-                            max: Point {
-                                x: ((word.bounding_box.max.x as f64) * multiplier) as u32,
-                                y: ((word.bounding_box.max.y as f64) * multiplier) as u32,
-                            },
-                        };
-
-                        average_color_for_rect(img, &integer_rect, Rgba([0, 0, 0, 0]))
-                    }
-                };
+                let color = self.get_color_for_word(word);
 
                 let p = Path::new()
                     .set("d", word.d())
@@ -481,9 +544,12 @@ impl<'a> WordCloud<'a> {
             let mut gr = Group::new().set("font-family", font.name());
 
             for word in group {
+                let color = self.get_color_for_word(word);
+
                 let mut t = Text::new()
                     .set("x", word.offset.x)
                     .set("y", word.offset.y)
+                    .set("fill", color_to_rgb_string(&color))
                     .set("font-size", word.scale);
                 match word.rotation {
                     Rotation::Zero => (),
@@ -500,7 +566,6 @@ impl<'a> WordCloud<'a> {
                     }
                 }
                 t.append(svg::node::Text::new(&word.text));
-
                 gr.append(t);
             }
 
@@ -508,6 +573,23 @@ impl<'a> WordCloud<'a> {
         }
 
         svg::save(filename, &document).unwrap();
+    }
+
+    pub fn write_debug_to_folder(&self, folder_name: &str) {
+        let fol = if folder_name.ends_with('/') {
+            String::from(folder_name)
+        } else {
+            String::from(folder_name) + "/"
+        };
+        if !std::path::Path::new(&fol).is_dir() {
+            std::fs::create_dir(&fol).unwrap();
+        }
+        if self.bg.is_some() {
+            self.debug_background_collision(&(fol.clone() + "background_collision.svg"));
+            self.debug_result_on_background(&(fol.clone() + "result_on_background.svg"));
+        }
+        self.debug_collidables(&(fol.clone() + "collidables.svg"));
+        self.debug_text(&(fol + "text.svg"));
     }
 }
 
@@ -565,75 +647,5 @@ impl<'a> WordCloudBuilder<'a> {
         }
 
         Ok(wc)
-    }
-}
-
-pub(crate) fn create_word_cloud(
-    dimensions: Dimensions,
-    font: FontSet,
-    inp: Vec<Inp>,
-    background_image: &DynamicImage,
-) {
-    let mut words = (0..available_parallelism!())
-        .into_par_iter()
-        .map(|n| {
-            inp.iter()
-                .skip(n)
-                .step_by(available_parallelism!())
-                .collect::<Vec<&Inp>>()
-        })
-        .map(|inputs| {
-            inputs.into_iter().map(|x| {
-                let left_offs = thread_rng().gen_range(0.0..dimensions.width() as f32);
-                let top_offs = thread_rng().gen_range(0.0..dimensions.height() as f32);
-                Word::build(
-                    &x.text,
-                    &font,
-                    x.scale,
-                    Point {
-                        x: left_offs,
-                        y: top_offs,
-                    },
-                    x.rotation,
-                )
-            })
-        })
-        .flatten_iter()
-        .collect::<Vec<Word>>();
-
-    words.sort_by_key(|x| x.scale as usize);
-    words.reverse();
-
-    let em: &[Word] = &[];
-
-    let (first, second) = if words.len() > 20 {
-        words.split_at(20)
-    } else {
-        (words.as_slice(), em)
-    };
-
-    let wc = WordCloudBuilder::new()
-        .dimensions(dimensions)
-        .font(&font)
-        .image(background_image)
-        .build()
-        .unwrap();
-
-    wc.put_text_sync(first.to_vec());
-    wc.put_text(second.to_vec());
-    wc.write_to_file("created.svg");
-
-    if true {
-        println!("Dumping Debug Files");
-
-        if !std::path::Path::new("debug").is_dir() {
-            std::fs::create_dir("debug").unwrap();
-        }
-        if wc.bg.is_some() {
-            wc.debug_background_collision("debug/background_collision.svg");
-            wc.debug_result_on_background("debug/result_on_background.svg");
-        }
-        wc.debug_collidables("debug/collidables.svg");
-        wc.debug_text("debug/text.svg");
     }
 }

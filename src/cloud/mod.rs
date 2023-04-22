@@ -1,11 +1,7 @@
 use crate::cloud::word::Inp;
-use crate::cloud::word_cloud::create_word_cloud;
-use crate::common::font::Font;
-use crate::image::Dimensions;
+
 use crate::types::rotation::Rotation;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-
-use crate::common::font::FontSetBuilder;
 
 pub(crate) mod letter;
 pub(crate) mod word;
@@ -255,37 +251,4 @@ fn create_placeholder_words() -> Vec<Inp> {
     inp.sort_by(|x, y| y.scale.total_cmp(&x.scale));
 
     inp
-}
-
-pub fn create_image(input_words_counted: Vec<crate::rank::Word>) {
-    let mut font_bts =
-        Vec::from(include_bytes!("../../assets/OpenSans-Regular.ttf") as &[u8]);
-    let test_image = include_bytes!("../../assets/circ.png") as &[u8];
-
-    let font_set = FontSetBuilder::new()
-        .push(Font::from_data(&mut font_bts))
-        .build();
-
-    let image = image::load_from_memory(test_image).expect("image load failed");
-    let output_dimensions = Dimensions::from_wh(1000, 1000);
-
-    let words = 2000;
-    let max = input_words_counted
-        .iter()
-        .take(words)
-        .map(|x| (x.count as f32))
-        .sum::<f32>()
-        / words as f32;
-
-    let inp: Vec<Inp> = input_words_counted
-        .iter()
-        .take(2000)
-        .map(|w| Inp {
-            text: w.content.to_string(),
-            scale: ((w.count as f32) / max) * 15.,
-            rotation: Rotation::Zero,
-        })
-        .collect();
-
-    create_word_cloud(output_dimensions, font_set, inp, &image);
 }

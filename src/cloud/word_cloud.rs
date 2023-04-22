@@ -1,4 +1,4 @@
-use crate::cloud::word::{Inp, Word};
+use crate::cloud::word::{Word, WordBuilder};
 use crate::common::font::FontSet;
 
 use crate::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string, Dimensions};
@@ -22,6 +22,7 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRef
 use std::sync::Arc;
 
 use crate::rank::RankedWords;
+use crate::types::spiral::Spiral;
 use svg::node::element::{Group, Path, Rectangle, Style, Text};
 use svg::{Document, Node};
 
@@ -118,8 +119,7 @@ impl<'a> WordCloud<'a> {
     }
 
     fn add_word(&self, mut word: Word<'a>) {
-        let mut theta = 0.0_f64;
-        let mut placed = false;
+        let mut spiral = Spiral::new(5.);
         let mut iters = 0;
         loop {
             if self.converted_dimensions().contains(&word.bounding_box) {
@@ -173,9 +173,6 @@ impl<'a> WordCloud<'a> {
                 }
 
                 if !intersected {
-                    // println!("Placed {} {} {}", word.text, quad_tree.len(), iters);
-                    placed = true;
-
                     let mut write = self.ct.write();
                     // read the newly added handles
                     for handle_id in len_bf..=write.len() {
@@ -198,7 +195,7 @@ impl<'a> WordCloud<'a> {
                 }
             }
 
-            if iters % 10 == 0 && iters > 0 {
+            if iters % 10 == 0 {
                 let new_pos = Point {
                     x: thread_rng().gen_range(0.0..self.dimensions.width() as f32),
                     y: thread_rng().gen_range(0.0..self.dimensions.height() as f32),
@@ -207,29 +204,16 @@ impl<'a> WordCloud<'a> {
                 iters += 1;
 
                 word.move_word(&new_pos);
-                theta = 0.0;
+                spiral.reset();
             } else {
-                let revelations = theta / (std::f64::consts::PI * 2.0f64);
-                if revelations < 5.0 {
-                    theta += 1.0;
-                } else {
-                    theta += 0.1_f64;
-                }
-
-                const B: f64 = 5.0_f64;
-                let r = B * theta;
-
-                let new_pos = Point {
-                    x: ((r * theta.cos()) as i32 + word.offset.x as i32) as f32,
-                    y: ((r * theta.sin()) as i32 + word.offset.y as i32) as f32,
-                };
+                spiral.advance();
+                let pos = spiral.position() + word.offset;
 
                 iters += 1;
 
-                word.move_word(&new_pos);
+                word.move_word(&pos);
             }
             if iters % 25 == 0 {
-                // dbg!("resizing");
                 if word.scale <= 10. {
                     break;
                 }
@@ -246,13 +230,6 @@ impl<'a> WordCloud<'a> {
                     },
                 );
             }
-            /*if iters > 55 {
-                break;
-            }*/
-        }
-
-        if !placed {
-            // println!("Failed to place!");
         }
     }
 
@@ -285,14 +262,15 @@ impl<'a> WordCloud<'a> {
             .sum::<f32>()
             / max_word_count as f32;
 
-        let inp: Vec<Inp> = content
+        let inp: Vec<WordBuilder> = content
             .0
             .iter()
             .take(max_word_count)
-            .map(|w| Inp {
-                text: w.content.to_string(),
-                scale: ((w.count as f32) / max) * 15.,
-                rotation: Rotation::Zero,
+            .map(|w| {
+                WordBuilder::new()
+                    .content(w.content.clone())
+                    .scale(((w.count as f32) / max) * 15.)
+                    .font(self.font)
             })
             .collect();
 
@@ -302,24 +280,9 @@ impl<'a> WordCloud<'a> {
                 inp.iter()
                     .skip(n)
                     .step_by(available_parallelism!())
-                    .collect::<Vec<&Inp>>()
+                    .collect::<Vec<&WordBuilder>>()
             })
-            .map(|inputs| {
-                inputs.into_iter().map(|x| {
-                    let left_offs = thread_rng().gen_range(0.0..self.dimensions.width() as f32);
-                    let top_offs = thread_rng().gen_range(0.0..self.dimensions.height() as f32);
-                    Word::build(
-                        &x.text,
-                        self.font,
-                        x.scale,
-                        Point {
-                            x: left_offs,
-                            y: top_offs,
-                        },
-                        x.rotation,
-                    )
-                })
-            })
+            .map(|inputs| inputs.into_iter().map(|x| x.build()))
             .flatten_iter()
             .collect::<Vec<Word>>();
 
@@ -338,7 +301,7 @@ impl<'a> WordCloud<'a> {
     }
 
     fn get_color_for_word(&self, word: &Word) -> Rgba<u8> {
-        let color = match self.bg_image {
+        match self.bg_image {
             None => Rgba([0; 4]),
             Some(img) => {
                 let multiplier = img.width() as f64
@@ -357,9 +320,7 @@ impl<'a> WordCloud<'a> {
 
                 average_color_for_rect(img, &integer_rect, Rgba([0, 0, 0, 0]))
             }
-        };
-
-        color
+        }
     }
 
     pub fn write_to_file(&self, filename: &str) {
@@ -387,7 +348,7 @@ impl<'a> WordCloud<'a> {
                 let p = Path::new()
                     .set("d", word.d())
                     .set("stoke", "none")
-                    .set("fill", crate::image::color_to_rgb_string(&color));
+                    .set("fill", color_to_rgb_string(&color));
                 let _s = p.to_string();
                 {
                     doc_mutex.lock().append(p);

@@ -14,11 +14,6 @@ use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
 
-pub(crate) struct Inp {
-    pub(crate) text: String,
-    pub(crate) scale: f32,
-    pub(crate) rotation: Rotation,
-}
 
 #[derive(Clone)]
 pub(crate) struct Word<'a> {
@@ -318,5 +313,41 @@ impl<'a> Word<'a> {
             }
         }
         false
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct WordBuilder<'a> {
+    content: Option<String>,
+    scale: Option<f32>,
+    font: Option<&'a FontSet<'a>>,
+}
+
+impl<'a> WordBuilder<'a> {
+    pub(crate) fn new() -> Self {
+        WordBuilder::default()
+    }
+
+    pub(crate) fn content(mut self, content: String) -> Self {
+        self.content = Some(content);
+        self
+    }
+    pub(crate) fn scale(mut self, scale: f32) -> Self {
+        self.scale = Some(scale);
+        self
+    }
+    pub(crate) fn font(mut self, font: &'a FontSet<'a>) -> Self {
+        self.font = Some(font);
+        self
+    }
+
+    pub(crate) fn build(&self) -> Word<'a> {
+        Word::build(
+            self.content.as_ref().unwrap().as_str(),
+            self.font.unwrap(),
+            self.scale.unwrap(),
+            Point::default(),
+            Rotation::Zero,
+        )
     }
 }

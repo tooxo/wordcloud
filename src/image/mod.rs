@@ -4,9 +4,15 @@ use crate::types::point::Point;
 use crate::types::rect::Rect;
 use image::{DynamicImage, GenericImageView, GrayImage, Rgba};
 
+/**
+    Describes Dimensions used for the aspect ratio of the output.
+*/
 pub type Dimensions = Rect<usize>;
 
 impl Dimensions {
+    /**
+        Creates [`Dimensions`] from width and height.
+    */
     pub fn from_wh(width: usize, height: usize) -> Self {
         Rect {
             min: Point::default(),

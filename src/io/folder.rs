@@ -1,4 +1,5 @@
 use std::fs::{canonicalize, read_dir};
+use std::io::Error;
 use std::iter::FusedIterator;
 use std::path::{Path, PathBuf};
 
@@ -12,12 +13,12 @@ pub struct RecursiveFolderIterator {
 }
 
 impl RecursiveFolderIterator {
-    pub fn new(folder: &Path, filter: fn(&Path) -> bool) -> Self {
-        RecursiveFolderIterator {
-            folder: vec![folder.canonicalize().unwrap()],
+    pub fn new(folder: &Path, filter: fn(&Path) -> bool) -> Result<Self, Error> {
+        Ok(RecursiveFolderIterator {
+            folder: vec![folder.canonicalize()?],
             file: Vec::new(),
             filter_fn: filter,
-        }
+        })
     }
 }
 
@@ -35,7 +36,10 @@ impl Iterator for RecursiveFolderIterator {
             if let Some(folder) = self.folder.pop() {
                 if let Ok(fl) = read_dir(folder) {
                     for f in fl.flatten() {
-                        let pth = canonicalize(f.path()).unwrap();
+                        let pth = match canonicalize(f.path()) {
+                            Ok(x) => x,
+                            Err(_) => continue,
+                        };
                         if pth.is_dir() {
                             self.folder.push(pth);
                         } else if pth.is_file() {

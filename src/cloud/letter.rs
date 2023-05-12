@@ -1,4 +1,3 @@
-use crate::common::path_collision::{approximate_curve, approximate_quad};
 use crate::common::svg_command::{Curve, End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
@@ -86,8 +85,8 @@ impl Letter {
                 .flat_map(|x| match x {
                     SVGPathCommand::Move(_) => vec![],
                     SVGPathCommand::Line(l) => vec![*l],
-                    SVGPathCommand::QuadCurve(q) => approximate_quad(q),
-                    SVGPathCommand::Curve(c) => approximate_curve(c),
+                    SVGPathCommand::QuadCurve(q) => q.approximate(),
+                    SVGPathCommand::Curve(c) => c.approximate(),
                     SVGPathCommand::End(_) => vec![],
                 })
                 .collect::<Vec<Line<f32>>>(),

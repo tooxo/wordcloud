@@ -1,19 +1,17 @@
 use std::fs::File;
+use std::io;
 use std::io::Read;
 use std::path::Path;
 
-pub fn read_string_from_file(filename: &str) -> String {
+/**
+    Reads the contents of a file to a string.
+*/
+pub fn read_string_from_file(filename: &str) -> io::Result<String> {
     let path = Path::new(filename);
-    let mut file = match File::open(path) {
-        Ok(f) => f,
-        Err(_) => panic!("file not found"),
-    };
+    let mut file = File::open(path)?;
 
     let mut contents = String::new();
-    match file.read_to_string(&mut contents) {
-        Ok(size) => size,
-        Err(_e) => panic!("couldn't read file"),
-    };
+    file.read_to_string(&mut contents)?;
 
-    contents
+    Ok(contents)
 }

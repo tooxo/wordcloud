@@ -1,5 +1,5 @@
-pub(crate) mod font;
-pub mod path_collision;
-pub mod svg_command;
-
-pub use font::{Font, FontSet, FontSetBuilder};
+/**
+Provides everything regarding the used fonts.
+ */
+pub mod font;
+pub(crate) mod svg_command;

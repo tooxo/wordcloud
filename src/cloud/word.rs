@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use swash::scale::outline::Outline;
 use swash::scale::ScaleContext;
 use swash::shape::Direction::LeftToRight;
@@ -8,12 +9,18 @@ use swash::zeno::PathData;
 
 use crate::cloud::letter::Letter;
 use crate::common::font::{Font, FontSet, GuessScript};
-use crate::common::path_collision::collide_line_line;
 use crate::common::svg_command::{Curve, End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
 
+thread_local! {
+    static SCALER_TL: RefCell<ScaleContext> = RefCell::new(ScaleContext::new());
+    static SHAPER_TL: RefCell<ShapeContext> = RefCell::new(ShapeContext::new());
+}
+
+type WordBuildingError = String;
+type WordBuildingResult<T> = Result<T, WordBuildingError>;
 
 #[derive(Clone)]
 pub(crate) struct Word<'a> {
@@ -34,105 +41,112 @@ impl<'a> Word<'a> {
         font_size: f32,
         start: Point<f32>,
         rotation: Rotation,
-    ) -> Word<'a> {
+    ) -> WordBuildingResult<Word<'a>> {
         let ws = text.guess_script();
-        let used_font = font.get_font_for_script(&ws).unwrap();
-        let mut shape = ShapeContext::new();
-        let mut shaper = shape
-            .builder(*used_font.reference())
-            .script(ws.s())
-            .size(font_size)
-            .direction(LeftToRight)
-            .insert_dotted_circles(true)
-            .retain_ignorables(true)
-            // .features(used_font.supported_features())
-            .features(&[
-                ("lnum", 1),
-                ("tnum", 1),
-                ("pnum", 1),
-                ("ordn", 1),
-                ("swsh", 1),
-                ("liga", 1),
-                ("hlig", 1),
-                ("dlig", 1),
-                ("calt", 1),
-            ])
-            .build();
-
-        let mut scale = ScaleContext::new();
-        let mut scaler = scale
-            .builder(*used_font.reference())
-            .size(font_size)
-            .build();
-
-        shaper.add_str(text);
-
-        let mut letters = Vec::new();
-        let chars = text.chars().collect::<Vec<char>>();
-        let mut char_index = 0;
-        let mut advance = 0.0;
-        shaper.shape_with(|c| {
-            letters.append(
-                &mut c
-                    .glyphs
-                    .iter()
-                    .map(|glyph| {
-                        let mut outline: Outline = Outline::new();
-                        scaler.scale_outline_into(glyph.id, &mut outline);
-
-                        let bounds = outline.bounds();
-                        let bbox = Rect {
-                            min: Point {
-                                x: bounds.min.x + advance,
-                                y: bounds.min.y,
-                            },
-                            max: Point {
-                                x: bounds.max.x + advance,
-                                y: bounds.max.y,
-                            },
-                        };
-
-                        let mut letter = Letter::new(
-                            chars[char_index],
-                            bbox,
-                            Point {
-                                x: glyph.x + advance,
-                                y: glyph.y,
-                            },
-                            rotation,
-                        );
-
-                        let commands = outline.path();
-                        for command in commands.commands() {
-                            let cmd: Command = command;
-                            match cmd {
-                                Command::MoveTo(p) => letter.move_to(p.x, p.y),
-                                Command::LineTo(p) => letter.line_to(p.x, p.y),
-                                Command::CurveTo(x1, x2, x) => {
-                                    letter.curve_to(x1.x, x1.y, x2.x, x2.y, x.x, x.y)
-                                }
-                                Command::QuadTo(x1, x) => letter.quad_to(x1.x, x1.y, x.x, x.y),
-                                Command::Close => letter.close(),
-                            }
-                        }
-                        advance += glyph.advance;
-                        char_index += 1;
-
-                        letter
-                    })
-                    .collect::<Vec<Letter>>(),
-            );
-        });
-
-        let mut w = Word {
-            text: String::from(text),
-            glyphs: letters,
-            offset: start,
-            bounding_box: Rect::default(),
-            scale: font_size,
-            rotation,
-            used_font,
+        let used_font = match font.get_font_for_script(&ws) {
+            None => return Err(format!("No font found, which supports: \"{}\"", text)),
+            Some(f) => f,
         };
+
+        let mut w = SHAPER_TL.with(|shape_ref| {
+            SCALER_TL.with(|scale_ref| {
+                let mut shape_context = shape_ref.borrow_mut();
+                let mut shaper = shape_context
+                    .builder(*used_font.reference())
+                    .script(ws.s())
+                    .size(font_size)
+                    .direction(LeftToRight)
+                    .features(&[
+                        ("lnum", 1),
+                        ("tnum", 1),
+                        ("pnum", 1),
+                        ("ordn", 1),
+                        ("swsh", 1),
+                        ("liga", 1),
+                        ("hlig", 1),
+                        ("dlig", 1),
+                        ("calt", 1),
+                    ])
+                    .build();
+
+                let mut scale_context = scale_ref.borrow_mut();
+                let mut scaler = scale_context
+                    .builder(*used_font.reference())
+                    .size(font_size)
+                    .build();
+
+                shaper.add_str(text);
+
+                let mut letters = Vec::new();
+                let chars = text.chars().collect::<Vec<char>>();
+                let mut char_index = 0;
+                let mut advance = 0.0;
+                shaper.shape_with(|c| {
+                    letters.append(
+                        &mut c
+                            .glyphs
+                            .iter()
+                            .map(|glyph| {
+                                let outline =
+                                    scaler.scale_outline(glyph.id).unwrap_or(Outline::new());
+
+                                let bounds = outline.bounds();
+                                let bbox = Rect {
+                                    min: Point {
+                                        x: bounds.min.x + advance,
+                                        y: bounds.min.y,
+                                    },
+                                    max: Point {
+                                        x: bounds.max.x + advance,
+                                        y: bounds.max.y,
+                                    },
+                                };
+
+                                let mut letter = Letter::new(
+                                    chars[char_index],
+                                    bbox,
+                                    Point {
+                                        x: glyph.x + advance,
+                                        y: glyph.y,
+                                    },
+                                    rotation,
+                                );
+
+                                let commands = outline.path();
+                                for command in commands.commands() {
+                                    let cmd: Command = command;
+                                    match cmd {
+                                        Command::MoveTo(p) => letter.move_to(p.x, p.y),
+                                        Command::LineTo(p) => letter.line_to(p.x, p.y),
+                                        Command::CurveTo(x1, x2, x) => {
+                                            letter.curve_to(x1.x, x1.y, x2.x, x2.y, x.x, x.y)
+                                        }
+                                        Command::QuadTo(x1, x) => {
+                                            letter.quad_to(x1.x, x1.y, x.x, x.y)
+                                        }
+                                        Command::Close => letter.close(),
+                                    }
+                                }
+                                advance += glyph.advance;
+                                char_index += 1;
+
+                                letter
+                            })
+                            .collect::<Vec<Letter>>(),
+                    );
+                });
+
+                Word {
+                    text: String::from(text),
+                    glyphs: letters,
+                    offset: start,
+                    bounding_box: Rect::default(),
+                    scale: font_size,
+                    rotation,
+                    used_font,
+                }
+            })
+        });
 
         let mut max_y = 0.0;
         let mut min_y = f32::MAX;
@@ -203,12 +217,19 @@ impl<'a> Word<'a> {
         w.recalculate_bounding_box();
         assert!(w.bounding_box.is_normal());
 
-        w
+        Ok(w)
     }
 
     fn recalculate_bounding_box(&mut self) {
+        if !self.glyphs.is_empty() {
+            return;
+        }
+
+        #[allow(clippy::unwrap_used)]
         let last_glyph = self.glyphs.last().unwrap();
+        #[allow(clippy::unwrap_used)]
         let first_glyph = self.glyphs.first().unwrap();
+
         let mut max_y = 0.0;
         let mut min_y = f32::MAX;
 
@@ -288,10 +309,10 @@ impl<'a> Word<'a> {
 
             let (mut col_h, mut col_l) = (0, 0);
             for collidable in right_collidables {
-                if collide_line_line(&collidable, &high_line) {
+                if collidable.intersects(&high_line) {
                     col_h += 1;
                 }
-                if collide_line_line(&collidable, &low_line) {
+                if collidable.intersects(&low_line) {
                     col_l += 1;
                 }
             }
@@ -305,8 +326,8 @@ impl<'a> Word<'a> {
         let extended = self.bounding_box.extend(2.0);
         for glyph in &other.glyphs {
             if extended.overlaps(&(glyph.relative_bounding_box(&other.rotation) + other.offset)) {
-                for l in glyph.absolute_collidables(&other.rotation, other.offset) {
-                    if extended.intersects(&l) {
+                for l in &glyph.absolute_collidables(&other.rotation, other.offset) {
+                    if extended.intersects(l) {
                         return true;
                     }
                 }
@@ -341,9 +362,10 @@ impl<'a> WordBuilder<'a> {
         self
     }
 
-    pub(crate) fn build(&self) -> Word<'a> {
+    pub(crate) fn build(&self) -> WordBuildingResult<Word<'a>> {
+        #[allow(clippy::unwrap_used)]
         Word::build(
-            self.content.as_ref().unwrap().as_str(),
+            self.content.as_ref().unwrap(),
             self.font.unwrap(),
             self.scale.unwrap(),
             Point::default(),

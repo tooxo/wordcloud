@@ -1,4 +1,3 @@
-use crate::common::path_collision::collide_line_line;
 use crate::common::svg_command::Line;
 use crate::types::point::Point;
 use num_traits::PrimInt;
@@ -91,7 +90,7 @@ where
             return true;
         }
         for n in &self.lines() {
-            if collide_line_line(n, other) {
+            if n.intersects(other) {
                 return true;
             }
         }
@@ -188,8 +187,6 @@ where
             }
         }
 
-        // todo add "touching cases"
-
         None
     }
 }
@@ -251,6 +248,6 @@ where
             })
             .dimensions((value.width(), value.height()))
             .build()
-            .unwrap()
+            .expect("couldn't parse area")
     }
 }

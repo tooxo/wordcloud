@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
+use std::io::Cursor;
 
 use std::sync::Arc;
 use swash::text::Codepoint;
@@ -10,7 +11,7 @@ use swash::{FontRef, StringId, Tag};
 use woff2::convert_woff2_to_ttf;
 
 #[derive(Clone)]
-#[allow(dead_code, clippy::upper_case_acronyms)]
+#[allow(clippy::upper_case_acronyms)]
 pub(crate) enum FontType {
     OTF,
     TTF,
@@ -29,6 +30,20 @@ impl FontType {
     }
 }
 
+/**
+    Error returned if font loading failed
+*/
+pub type FontLoadingError = String;
+
+/**
+    Result from [`FontLoadingError`]
+*/
+pub type FontLoadingResult<T> = Result<T, FontLoadingError>;
+
+/**
+    Represents a Font stored in memory. By default it supports `OTF` and `TTF` fonts, with
+    the create features `woff` and `woff2` it also supports loading `WOFF` fonts.
+*/
 pub struct Font<'a> {
     name: String,
     re: FontRef<'a>,
@@ -62,33 +77,56 @@ impl<'a> Font<'a> {
         scripts_in_specs
     }
 
-    pub fn from_data(data: &'a mut Vec<u8>) -> Self {
+    /**
+        Load a font from memory. The buffer, in which the font data is stored might be changed
+        after calling this function.
+    */
+    pub fn from_data(data: &'a mut Vec<u8>) -> FontLoadingResult<Self> {
         assert!(data.len() >= 4);
         let (font_type, re, packed_data) = if &data[0..4] == b"\x00\x01\x00\x00" {
-            (FontType::TTF, FontRef::from_index(data, 0).unwrap(), None)
+            (FontType::TTF, FontRef::from_index(data, 0), None)
         } else if &data[0..4] == b"OTTO" {
-            (FontType::OTF, FontRef::from_index(data, 0).unwrap(), None)
+            (FontType::OTF, FontRef::from_index(data, 0), None)
         } else if &data[0..4] == b"wOF2" {
             #[cfg(feature = "woff2")]
             {
-                let cv = convert_woff2_to_ttf(&mut data.as_slice()).unwrap();
+                let cv = match convert_woff2_to_ttf(&mut data.as_slice()) {
+                    Ok(c) => c,
+                    Err(e) => return Err(e.to_string()),
+                };
                 let pack = data.clone();
 
                 data.clear();
                 data.extend_from_slice(cv.as_slice());
 
-                (
-                    FontType::WOFF2,
-                    FontRef::from_index(data, 0).unwrap(),
-                    Some(pack),
-                )
+                (FontType::WOFF2, FontRef::from_index(data, 0), Some(pack))
             }
             #[cfg(not(feature = "woff2"))]
             unimplemented!("activate the woff2 feature for this font")
         } else if &data[0..4] == b"wOFF" {
-            unimplemented!("woff1 is currently not supported");
+            #[cfg(feature = "rust-woff")]
+            {
+                let mut inp_cur = Cursor::new(&data);
+                let mut out_cur = Cursor::new(Vec::new());
+                woff::convert_woff_to_otf(&mut inp_cur, &mut out_cur)
+                    .expect("font conversion from woff1 unsuccessful");
+
+                let pack = data.clone();
+
+                data.clear();
+                data.extend_from_slice(out_cur.get_ref().as_slice());
+
+                (FontType::WOFF, FontRef::from_index(data, 0), Some(pack))
+            }
+            #[cfg(not(feature = "rust-woff"))]
+            unimplemented!("activate the rust-woff feature for this font");
         } else {
             unimplemented!("unrecognized font magic {:?}", &data[0..4]);
+        };
+
+        let re = match re {
+            None => return Err(FontLoadingError::from("loading font failed")),
+            Some(e) => e,
         };
 
         let font_name = match re
@@ -99,13 +137,13 @@ impl<'a> Font<'a> {
             Some(locale) => locale.to_string(),
         };
 
-        Font {
+        Ok(Font {
             name: font_name,
             re,
             font_type,
             supported_scripts: Font::identify_scripts_in_font(&re),
             packed_font_data: packed_data,
-        }
+        })
     }
 
     pub(crate) fn reference(&self) -> &FontRef<'a> {
@@ -144,6 +182,10 @@ impl<'a> Hash for Font<'a> {
     }
 }
 
+/**
+    Manages multiple [`Font`]s and selects the right one for each writing script used in the
+    input text. Has to be built via the [`FontSetBuilder`].
+*/
 #[derive(Clone)]
 pub struct FontSet<'a> {
     inner: Arc<Vec<Font<'a>>>,
@@ -157,16 +199,35 @@ impl<'a> FontSet<'a> {
     }
 }
 
+/**
+    Builds a [`FontSet`]
+
+    Example Use:
+    ```
+    use wordcloud::font::{FontSet, FontSetBuilder};
+
+    // let fonts = ...;
+    let font_set: FontSet = FontSetBuilder::new()
+        .extend(fonts)
+        .build();
+    ```
+*/
 #[derive(Default)]
 pub struct FontSetBuilder<'a> {
     fonts: Vec<Font<'a>>,
 }
 
 impl<'a> FontSetBuilder<'a> {
+    /**
+        Construct a new [`FontSetBuilder`]
+    */
     pub fn new() -> Self {
         Self::default()
     }
 
+    /**
+        Add a new [`Font`] to the [`FontSet`]
+    */
     pub fn push(mut self, font: Font<'a>) -> Self {
         if self.fonts.iter().any(|x| x.name == font.name) {
             eprintln!(
@@ -179,6 +240,9 @@ impl<'a> FontSetBuilder<'a> {
         self
     }
 
+    /**
+        Add a collection of [`Font`]s to the [`FontSet`]
+    */
     pub fn extend(mut self, fonts: Vec<Font<'a>>) -> Self {
         for font in fonts {
             self = self.push(font);
@@ -186,7 +250,13 @@ impl<'a> FontSetBuilder<'a> {
         self
     }
 
+    /**
+        Build a [`FontSet`] from the fonts. Panics, if no font was provided.
+    */
     pub fn build(self) -> FontSet<'a> {
+        if self.fonts.is_empty() {
+            panic!("At least one font needs to be provided.");
+        }
         FontSet {
             inner: Arc::new(self.fonts),
         }
@@ -194,7 +264,7 @@ impl<'a> FontSetBuilder<'a> {
 }
 
 #[derive(Hash, PartialEq, Eq)]
-pub struct CScript {
+pub(crate) struct CScript {
     u: unicode_script::Script,
     s: swash::text::Script,
 }
@@ -230,34 +300,30 @@ impl Default for CScript {
     }
 }
 
-pub trait GuessScript {
+pub(crate) trait GuessScript {
     fn guess_script(&self) -> CScript;
 }
 
 impl GuessScript for String {
     fn guess_script(&self) -> CScript {
-        if self.is_empty() {
-            CScript::default()
-        } else {
-            let cr = self.chars().next().unwrap();
-            CScript {
+        match self.chars().next() {
+            None => CScript::default(),
+            Some(cr) => CScript {
                 u: unicode_script::UnicodeScript::script(&cr),
                 s: Codepoint::script(cr),
-            }
+            },
         }
     }
 }
 
 impl GuessScript for &str {
     fn guess_script(&self) -> CScript {
-        if self.is_empty() {
-            CScript::default()
-        } else {
-            let cr = self.chars().next().unwrap();
-            CScript {
+        match self.chars().next() {
+            None => CScript::default(),
+            Some(cr) => CScript {
                 u: unicode_script::UnicodeScript::script(&cr),
                 s: Codepoint::script(cr),
-            }
+            },
         }
     }
 }

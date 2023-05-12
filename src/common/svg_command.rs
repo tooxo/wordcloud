@@ -1,7 +1,7 @@
 use crate::types::point::Point;
-use num_traits::Zero;
+use itertools::Itertools;
 use std::f32::consts::PI;
-use std::ops::{Add, Deref, Sub};
+use std::ops::{Add, Deref, Mul, Sub};
 
 #[derive(Debug, Clone)]
 pub(crate) enum SVGPathCommand {
@@ -120,7 +120,6 @@ pub(crate) struct QuadCurve {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 // https://www.geogebra.org/classic/WPHQ9rUt
 pub(crate) struct Curve {
     pub(crate) c2: Point<f32>,
@@ -149,7 +148,7 @@ where
 
     pub(crate) fn thicken(&self, width: T) -> Parallelogram<T>
     where
-        T: num_traits::float::Float + Zero + From<f32>,
+        T: num_traits::float::Float + From<f32>,
     {
         let half_width = width / <T as From<f32>>::from(2.0);
 
@@ -173,7 +172,7 @@ where
 
         let vec = Point {
             x: half_width,
-            y: <T as From<f32>>::from(0.0),
+            y: T::zero(),
         };
         let (p1, p2, p3, p4) = (
             start_rot - vec,
@@ -188,6 +187,29 @@ where
             p3: Line::rotate_point(p3, -deg),
             p4: Line::rotate_point(p4, -deg),
         }
+    }
+}
+
+impl<T> Line<T>
+where
+    T: Copy + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+{
+    pub(crate) fn intersects(&self, other: &Line<T>) -> bool {
+        fn ccw<T>(a: Point<T>, b: Point<T>, c: Point<T>) -> bool
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+        {
+            (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x)
+        }
+
+        fn i<T>(a: Point<T>, b: Point<T>, c: Point<T>, d: Point<T>) -> bool
+        where
+            T: Copy + Sub<Output = T> + Mul<Output = T> + PartialOrd,
+        {
+            ccw(a, c, d) != ccw(b, c, d) && ccw(a, b, c) != ccw(a, b, d)
+        }
+
+        i(self.start, self.end, other.start, other.end)
     }
 }
 
@@ -267,11 +289,20 @@ impl SvgCommand for End {
 }
 
 impl QuadCurve {
-    pub(crate) fn divide_quad(&self, center_points: usize) -> Vec<Point<f32>> {
+    fn divide_quad(&self, center_points: usize) -> Vec<Point<f32>> {
         let points = center_points + 2;
         (0..points)
             .map(|i| (1. / (points - 1) as f32) * i as f32)
             .map(|x| self.get_point_on_curve(x))
+            .collect()
+    }
+
+    pub(crate) fn approximate(&self) -> Vec<Line<f32>> {
+        let approx = self.divide_quad(1);
+        approx
+            .iter()
+            .tuple_windows()
+            .map(|(s, e)| Line { start: *s, end: *e })
             .collect()
     }
 
@@ -289,11 +320,20 @@ impl QuadCurve {
 }
 
 impl Curve {
-    pub(crate) fn divide_curve(&self, center_points: usize) -> Vec<Point<f32>> {
+    fn divide_curve(&self, center_points: usize) -> Vec<Point<f32>> {
         let points = center_points + 2;
         (0..points)
             .map(|i| (1. / (points - 1) as f32) * i as f32)
             .map(|x| self.get_point_on_curve(x))
+            .collect()
+    }
+
+    pub(crate) fn approximate(&self) -> Vec<Line<f32>> {
+        let approx = self.divide_curve(2);
+        approx
+            .iter()
+            .tuple_windows()
+            .map(|(s, e)| Line { start: *s, end: *e })
             .collect()
     }
 
@@ -310,7 +350,7 @@ impl Curve {
         P_8 = (1-t) P_5 + t P_6
         P_9 = (1-t) P_6 + t P_7
         BZ = (1-t) P_8 +t P_9
-         */
+        */
 
         let inv_t = 1. - t;
         let p5 = self.s * inv_t + self.c1 * t;

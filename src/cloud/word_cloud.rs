@@ -1,5 +1,7 @@
 use crate::cloud::word::{Word, WordBuilder};
 use crate::common::font::FontSet;
+use std::io::Cursor;
+use std::io::Error;
 
 use crate::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string, Dimensions};
 use crate::types::point::Point;
@@ -37,6 +39,9 @@ macro_rules! available_parallelism {
     };
 }
 
+/**
+    Creates the WordCloud
+*/
 pub struct WordCloud<'a> {
     ct: RwLock<Quadtree<u64, Word<'a>>>,
     bg: Option<Quadtree<u64, ()>>,
@@ -83,13 +88,13 @@ impl<'a> WordCloud<'a> {
                     .anchor((pos_x as u64, pos_y as u64).into())
                     .dimensions(((4.) as u64, (4.) as u64))
                     .build()
-                    .unwrap();
+                    .expect("Error while calculating dimensions");
 
                 let insert_area = AreaBuilder::default()
                     .anchor(((x as f32) as u64, (y as f32) as u64).into())
                     .dimensions(((1.) as u64, (1.) as u64))
                     .build()
-                    .unwrap();
+                    .expect("Error while calculating dimensions");
 
                 let other = qt.query(search_area).next();
                 if let Some(o) = other {
@@ -137,7 +142,7 @@ impl<'a> WordCloud<'a> {
                         (word.bounding_box.height() / QUADTREE_DIVISOR).ceil() as u64 + 2,
                     ))
                     .build()
-                    .unwrap();
+                    .expect("search region undefined");
 
                 let insert_region = AreaBuilder::default()
                     .anchor(
@@ -152,7 +157,7 @@ impl<'a> WordCloud<'a> {
                         (word.bounding_box.height() / QUADTREE_DIVISOR).ceil() as u64,
                     ))
                     .build()
-                    .unwrap();
+                    .expect("insert region undefined");
 
                 if let Some(qt_bg) = &self.bg {
                     if qt_bg.query(insert_region).next().is_some() {
@@ -213,12 +218,12 @@ impl<'a> WordCloud<'a> {
 
                 word.move_word(&pos);
             }
-            if iters % 25 == 0 {
+            if iters % 25 == 0 && iters != 0 {
                 if word.scale <= 10. {
                     break;
                 }
 
-                word = Word::build(
+                word = match Word::build(
                     word.text.as_str(),
                     self.font,
                     word.scale - 2.,
@@ -228,7 +233,10 @@ impl<'a> WordCloud<'a> {
                     } else {
                         Rotation::TwoSeventy
                     },
-                );
+                ) {
+                    Ok(w) => w,
+                    Err(_) => continue,
+                };
             }
         }
     }
@@ -253,12 +261,15 @@ impl<'a> WordCloud<'a> {
         xl.into_par_iter().for_each(|wl| self.put_text_sync(wl));
     }
 
+    /**
+        Add new words to the [`WordCloud`]. For the best results, call this function only once.
+    */
     pub fn write_content(&self, content: RankedWords, max_word_count: usize) {
         let max = content
             .0
             .iter()
             .take(max_word_count)
-            .map(|x| (x.count as f32))
+            .map(|x| (x.count() as f32))
             .sum::<f32>()
             / max_word_count as f32;
 
@@ -268,8 +279,8 @@ impl<'a> WordCloud<'a> {
             .take(max_word_count)
             .map(|w| {
                 WordBuilder::new()
-                    .content(w.content.clone())
-                    .scale(((w.count as f32) / max) * 15.)
+                    .content(w.content().to_string())
+                    .scale(((w.count() as f32) / max) * 15.)
                     .font(self.font)
             })
             .collect();
@@ -284,6 +295,13 @@ impl<'a> WordCloud<'a> {
             })
             .map(|inputs| inputs.into_iter().map(|x| x.build()))
             .flatten_iter()
+            .flat_map(|pw| match pw {
+                Ok(w) => Some(w),
+                Err(e) => {
+                    eprintln!("Warning: {}", e);
+                    None
+                }
+            })
             .collect::<Vec<Word>>();
 
         words.sort_by_key(|d| d.scale as u64);
@@ -323,7 +341,15 @@ impl<'a> WordCloud<'a> {
         }
     }
 
-    pub fn write_to_file(&self, filename: &str) {
+    /**
+        Export the resulting WordCloud as an SVG formatted [`String`]. Here the text is rendered using SVG Paths instead
+        of Text elements. This leads to way bigger file sizes, but also to a little bit more accurate
+        drawing of the text.
+
+        To export using text elements, use the [`Self::export_text`]
+        function.
+    */
+    pub fn export_rendered(&self) -> Result<String, Error> {
         let ct = self.ct.read();
         let collected_entries: Vec<&Word> = ct.iter().map(|x| x.value_ref()).collect();
 
@@ -355,127 +381,33 @@ impl<'a> WordCloud<'a> {
                 }
             }
         });
-        svg::save(filename, &doc_mutex.lock().clone()).unwrap();
-    }
-}
+        let lock = doc_mutex.lock();
+        let mut target = Cursor::new(Vec::new());
+        match svg::write(&mut target, &lock.clone()) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        };
 
-impl<'a> WordCloud<'a> {
-    fn debug_background_collision(&self, filename: &str) {
-        let mut document = Document::new()
-            .set(
-                "viewBox",
-                (0, 0, self.dimensions.width(), self.dimensions.height()),
-            )
-            .set("height", self.dimensions.height())
-            .set("width", self.dimensions.width());
-
-        let colors = vec![
-            "black", "gray", "silver", "maroon", "red", "purple", "fuchsia", "green", "lime",
-            "olive", "yellow", "navy", "blue", "teal", "aqua",
-        ];
-        if let Some(i) = self.bg.as_ref() {
-            for bound in i.iter() {
-                let random_color = colors[thread_rng().gen_range(0..colors.len())];
-
-                let rec = Rectangle::new()
-                    .set("x", bound.anchor().x as f32 * QUADTREE_DIVISOR)
-                    .set("y", bound.anchor().y as f32 * QUADTREE_DIVISOR)
-                    .set("width", bound.area().width() as f32 * QUADTREE_DIVISOR)
-                    .set("height", bound.area().height() as f32 * QUADTREE_DIVISOR)
-                    .set("stroke", "black")
-                    .set("stroke-width", "1px")
-                    .set("fill", random_color);
-
-                document.append(rec);
-            }
-        }
-
-        svg::save(filename, &document).unwrap();
-    }
-    fn debug_result_on_background(&self, filename: &str) {
-        let mut document = Document::new()
-            .set(
-                "viewBox",
-                (0, 0, self.dimensions.width(), self.dimensions.height()),
-            )
-            .set("height", self.dimensions.height())
-            .set("width", self.dimensions.width());
-
-        if let Some(i) = self.bg.as_ref() {
-            for bound in i.iter() {
-                let rec = Rectangle::new()
-                    .set("x", bound.anchor().x as f32 * QUADTREE_DIVISOR)
-                    .set("y", bound.anchor().y as f32 * QUADTREE_DIVISOR)
-                    .set("width", bound.area().width() as f32 * QUADTREE_DIVISOR)
-                    .set("height", bound.area().height() as f32 * QUADTREE_DIVISOR);
-
-                document.append(rec);
-            }
-        }
-
-        for word in self.ct.read().iter() {
-            let p = Path::new()
-                .set("d", word.value_ref().d())
-                .set("stoke", "none")
-                .set("fill", "gray");
-            document.append(p);
-        }
-
-        svg::save(filename, &document).unwrap();
+        Ok(String::from_utf8(target.into_inner()).expect("decoding the written string failed"))
     }
 
-    fn debug_collidables(&self, filename: &str) {
-        let mut document = Document::new()
-            .set(
-                "viewBox",
-                (0, 0, self.dimensions.width(), self.dimensions.height()),
-            )
-            .set("height", self.dimensions.height())
-            .set("width", self.dimensions.width());
-
-        for x in self.ct.read().iter() {
-            let w = x.value_ref();
-            for glyph in &w.glyphs {
-                for x in glyph.absolute_collidables(&w.rotation, w.offset) {
-                    let p = Path::new()
-                        .set("stroke", "black")
-                        .set("stroke-width", 1)
-                        .set(
-                            "d",
-                            format!("M {} {} L {} {} Z", x.start.x, x.start.y, x.end.x, x.end.y),
-                        );
-                    document.append(p);
-                }
-
-                let r = glyph.relative_bounding_box(&w.rotation) + w.offset;
-                let p = Rectangle::new()
-                    .set("stroke", "green")
-                    .set("stroke-width", 1)
-                    .set("fill", "none")
-                    .set("x", r.min.x)
-                    .set("y", r.min.y)
-                    .set("width", r.width())
-                    .set("height", r.height());
-
-                document.append(p);
-            }
-
-            document.append(
-                Rectangle::new()
-                    .set("stroke", "red")
-                    .set("stroke-width", 1)
-                    .set("fill", "none")
-                    .set("x", w.bounding_box.min.x)
-                    .set("y", w.bounding_box.min.y)
-                    .set("width", w.bounding_box.width())
-                    .set("height", w.bounding_box.height()),
-            )
-        }
-
-        svg::save(filename, &document).unwrap();
+    /**
+        Writes the result of [`Self::export_rendered`] to a file.
+    */
+    pub fn export_rendered_to_file(&self, filename: &str) -> Result<(), Error> {
+        let string = self.export_rendered()?;
+        std::fs::write(filename, string.as_bytes())?;
+        Ok(())
     }
 
-    fn debug_text(&self, filename: &str) {
+    /**
+       Export the resulting WordCloud as an SVG formatted [`String`]. Here the text is rendered
+       using Text elements.
+
+       This function should be preferred over [`Self::export_rendered`] in
+       most use-cases.
+    */
+    pub fn export_text(&self) -> Result<String, Error> {
         let mut document = Document::new()
             .set(
                 "viewBox",
@@ -533,24 +465,156 @@ impl<'a> WordCloud<'a> {
             document.append(gr);
         }
 
-        svg::save(filename, &document).unwrap();
+        let mut cursor = Cursor::new(Vec::new());
+        svg::write(&mut cursor, &document)?;
+
+        Ok(String::from_utf8_lossy(&cursor.into_inner()).into())
     }
 
-    pub fn write_debug_to_folder(&self, folder_name: &str) {
+    /**
+    Writes the result of [`Self::export_text`] to a file.
+     */
+    pub fn export_text_to_file(&self, filename: &str) -> Result<(), Error> {
+        let string = self.export_text()?;
+        std::fs::write(filename, string.as_bytes())?;
+        Ok(())
+    }
+}
+
+impl<'a> WordCloud<'a> {
+    fn debug_background_collision(&self, filename: &str) {
+        let mut document = Document::new()
+            .set(
+                "viewBox",
+                (0, 0, self.dimensions.width(), self.dimensions.height()),
+            )
+            .set("height", self.dimensions.height())
+            .set("width", self.dimensions.width());
+
+        let colors = vec![
+            "black", "gray", "silver", "maroon", "red", "purple", "fuchsia", "green", "lime",
+            "olive", "yellow", "navy", "blue", "teal", "aqua",
+        ];
+        if let Some(i) = self.bg.as_ref() {
+            for bound in i.iter() {
+                let random_color = colors[thread_rng().gen_range(0..colors.len())];
+
+                let rec = Rectangle::new()
+                    .set("x", bound.anchor().x as f32 * QUADTREE_DIVISOR)
+                    .set("y", bound.anchor().y as f32 * QUADTREE_DIVISOR)
+                    .set("width", bound.area().width() as f32 * QUADTREE_DIVISOR)
+                    .set("height", bound.area().height() as f32 * QUADTREE_DIVISOR)
+                    .set("stroke", "black")
+                    .set("stroke-width", "1px")
+                    .set("fill", random_color);
+
+                document.append(rec);
+            }
+        }
+
+        svg::save(filename, &document).expect("writing to file failed");
+    }
+    fn debug_result_on_background(&self, filename: &str) {
+        let mut document = Document::new()
+            .set(
+                "viewBox",
+                (0, 0, self.dimensions.width(), self.dimensions.height()),
+            )
+            .set("height", self.dimensions.height())
+            .set("width", self.dimensions.width());
+
+        if let Some(i) = self.bg.as_ref() {
+            for bound in i.iter() {
+                let rec = Rectangle::new()
+                    .set("x", bound.anchor().x as f32 * QUADTREE_DIVISOR)
+                    .set("y", bound.anchor().y as f32 * QUADTREE_DIVISOR)
+                    .set("width", bound.area().width() as f32 * QUADTREE_DIVISOR)
+                    .set("height", bound.area().height() as f32 * QUADTREE_DIVISOR);
+
+                document.append(rec);
+            }
+        }
+
+        for word in self.ct.read().iter() {
+            let p = Path::new()
+                .set("d", word.value_ref().d())
+                .set("stoke", "none")
+                .set("fill", "gray");
+            document.append(p);
+        }
+
+        svg::save(filename, &document).expect("writing to file failed");
+    }
+
+    fn debug_collidables(&self, filename: &str) {
+        let mut document = Document::new()
+            .set(
+                "viewBox",
+                (0, 0, self.dimensions.width(), self.dimensions.height()),
+            )
+            .set("height", self.dimensions.height())
+            .set("width", self.dimensions.width());
+
+        for x in self.ct.read().iter() {
+            let w = x.value_ref();
+            for glyph in &w.glyphs {
+                for x in glyph.absolute_collidables(&w.rotation, w.offset) {
+                    let p = Path::new()
+                        .set("stroke", "black")
+                        .set("stroke-width", 1)
+                        .set(
+                            "d",
+                            format!("M {} {} L {} {} Z", x.start.x, x.start.y, x.end.x, x.end.y),
+                        );
+                    document.append(p);
+                }
+
+                let r = glyph.relative_bounding_box(&w.rotation) + w.offset;
+                let p = Rectangle::new()
+                    .set("stroke", "green")
+                    .set("stroke-width", 1)
+                    .set("fill", "none")
+                    .set("x", r.min.x)
+                    .set("y", r.min.y)
+                    .set("width", r.width())
+                    .set("height", r.height());
+
+                document.append(p);
+            }
+
+            document.append(
+                Rectangle::new()
+                    .set("stroke", "red")
+                    .set("stroke-width", 1)
+                    .set("fill", "none")
+                    .set("x", w.bounding_box.min.x)
+                    .set("y", w.bounding_box.min.y)
+                    .set("width", w.bounding_box.width())
+                    .set("height", w.bounding_box.height()),
+            )
+        }
+
+        svg::save(filename, &document).expect("error exporting to file");
+    }
+
+    /**
+        Exports versions of the WordCloud to a folder, which are mainly used for debugging purposes.
+        This function may panic, so it shouldn't be used in production.
+    */
+    pub fn export_debug_to_folder(&self, folder_name: &str) {
         let fol = if folder_name.ends_with('/') {
             String::from(folder_name)
         } else {
             String::from(folder_name) + "/"
         };
         if !std::path::Path::new(&fol).is_dir() {
-            std::fs::create_dir(&fol).unwrap();
+            std::fs::create_dir(&fol).expect("creating debug folder failed");
         }
         if self.bg.is_some() {
             self.debug_background_collision(&(fol.clone() + "background_collision.svg"));
             self.debug_result_on_background(&(fol.clone() + "result_on_background.svg"));
         }
-        self.debug_collidables(&(fol.clone() + "collidables.svg"));
-        self.debug_text(&(fol + "text.svg"));
+        self.debug_collidables(&(fol + "collidables.svg"));
     }
 }
 

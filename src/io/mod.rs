@@ -1,4 +1,5 @@
-pub mod file;
+mod file;
 mod folder;
 
-pub use crate::io::folder::RecursiveFolderIterator;
+pub use file::read_string_from_file;
+pub use folder::RecursiveFolderIterator;

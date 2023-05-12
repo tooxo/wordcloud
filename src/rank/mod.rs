@@ -1,25 +1,34 @@
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct Word {
-    pub content: String,
-    pub count: usize,
+pub(crate) struct Word {
+    content: String,
+    count: usize,
 }
 
 impl Word {
-    pub fn new(content: String) -> Self {
-        Self { content, count: 1 }
+    pub fn content(&self) -> &str {
+        &self.content
+    }
+    pub fn count(&self) -> usize {
+        self.count
     }
 }
 
-pub struct RankedWords(pub Vec<Word>);
+/**
+    Used to precalculate the "common-ness" of the words.
+*/
+pub struct RankedWords(pub(crate) Vec<Word>);
 
 impl RankedWords {
-    pub fn rank(v: Vec<String>) -> RankedWords {
+    /**
+        Rank the words by accuracy.
+    */
+    pub fn rank(words: Vec<String>) -> RankedWords {
         let mut hs: HashMap<String, usize> = HashMap::new();
-        for s in v {
+        for s in words {
             let f = hs.get(&s);
             hs.insert(s, *f.unwrap_or(&0) + 1);
         }

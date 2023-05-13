@@ -7,7 +7,7 @@ use wordcloud::{RankedWords, StopWords};
 fn main() {
     let sw = StopWords::default();
 
-    let s = wordcloud::io::read_string_from_file("input").expect("couldn't read input file");
+    let s = include_str!("assets/input");
     let s2 = clean(s.to_lowercase().as_str());
 
     let f = s2
@@ -19,8 +19,8 @@ fn main() {
 
     let ranked = RankedWords::rank(f);
 
-    let mut font_bts = Vec::from(include_bytes!("../assets/OpenSans-Regular.ttf") as &[u8]);
-    let test_image = include_bytes!("../assets/circ.png") as &[u8];
+    let mut font_bts = Vec::from(include_bytes!("assets/OpenSans-Regular.ttf") as &[u8]);
+    let test_image = include_bytes!("assets/circ.png") as &[u8];
 
     let font_set = FontSetBuilder::new()
         .push(Font::from_data(&mut font_bts).expect("couldn't parse font data"))

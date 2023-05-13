@@ -89,7 +89,7 @@ impl Default for StopWords {
         stopwords-json repository can be included.
     */
     fn default() -> Self {
-        static DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/assets/stopwords-json");
+        static DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/extern/stopwords-json");
 
         let mut sw = StopWords::new();
 

@@ -20,6 +20,7 @@ path = "example/main.rs"
 [lib]
 name = "wordcloud"
 path = "src/lib.rs"
+doctest = false
 
 [dependencies]
 rayon = "1.6.1"

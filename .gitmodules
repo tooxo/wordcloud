@@ -1,3 +1,4 @@
-[submodule "assets/stopwords-json"]
-	path = assets/stopwords-json
-	url = git@github.com:6/stopwords-json.git
+[submodule "extern/stopwords-json"]
+	path = extern/stopwords-json
+	url = https://github.com/6/stopwords-json.git
+

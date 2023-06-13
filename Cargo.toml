@@ -10,6 +10,14 @@ edition = "2021"
 license = "Mozilla Public License 2.0"
 categories = ["wordcloud"]
 keywords = ["wordcloud", "text", "visualization"]
+exclude = [
+    ".fleet/",
+    ".github/",
+    "debug/",
+    "target/",
+    ".idea/",
+    ".git/"
+]
 
 [features]
 default = ["stopwords", "woff2", "rust-woff"]

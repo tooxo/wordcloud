@@ -3,12 +3,12 @@ use rayon::iter::ParallelIterator;
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub(crate) struct Word {
+pub(crate) struct Token {
     content: String,
     count: usize,
 }
 
-impl Word {
+impl Token {
     pub fn content(&self) -> &str {
         &self.content
     }
@@ -20,7 +20,7 @@ impl Word {
 /**
     Used to precalculate the "common-ness" of the words.
 */
-pub struct RankedWords(pub(crate) Vec<Word>);
+pub struct RankedWords(pub(crate) Vec<Token>);
 
 impl RankedWords {
     /**
@@ -36,11 +36,11 @@ impl RankedWords {
         let mut n = hs
             .into_par_iter()
             .map(|c| (c.0, c.1))
-            .map(|k| Word {
+            .map(|k| Token {
                 content: k.0,
                 count: k.1,
             })
-            .collect::<Vec<Word>>();
+            .collect::<Vec<Token>>();
 
         n.sort_by(|w, w2| w2.count.cmp(&w.count));
 

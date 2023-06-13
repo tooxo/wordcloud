@@ -8,6 +8,8 @@ readme = "Readme.md"
 version = "0.1.0"
 edition = "2021"
 license = "Mozilla Public License 2.0"
+categories = ["wordcloud"]
+keywords = ["wordcloud", "text", "visualization"]
 
 [features]
 default = ["stopwords", "woff2", "rust-woff"]
@@ -38,3 +40,7 @@ unicode-script = "0.5.5"
 woff2 = { version = "0.3.0", optional = true }
 rust-woff = { version = "*", git = "https://github.com/eratou/rust-woff.git", optional = true }
 include_dir = { version = "0.7.3", features = ["glob"], optional = true }
+
+[profile.profiler]
+inherits = "release"
+debug = 1

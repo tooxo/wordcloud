@@ -1,7 +1,10 @@
+#[cfg(feature = "background_image")]
 use edge_detection::Detection;
 
 use crate::types::point::Point;
 use crate::types::rect::Rect;
+
+#[cfg(feature = "background_image")]
 use image::{DynamicImage, GenericImageView, GrayImage, Rgba};
 
 /**
@@ -24,6 +27,7 @@ impl Dimensions {
     }
 }
 
+#[cfg(feature = "background_image")]
 pub(crate) fn canny_algorithm(image: &GrayImage, sigma: f32) -> Detection {
     let det = edge_detection::canny(image.clone(), sigma, 0.3, 0.05);
 
@@ -32,6 +36,7 @@ pub(crate) fn canny_algorithm(image: &GrayImage, sigma: f32) -> Detection {
     det
 }
 
+#[cfg(feature = "background_image")]
 pub(crate) fn average_color_for_rect(
     image: &DynamicImage,
     rect: &Rect<u32>,
@@ -68,6 +73,7 @@ pub(crate) fn average_color_for_rect(
     }
 }
 
+#[cfg(feature = "background_image")]
 pub(crate) fn color_to_rgb_string(rgba: &Rgba<u8>) -> String {
     format!("rgb({}, {}, {})", rgba.0[0], rgba.0[1], rgba.0[2],)
 }

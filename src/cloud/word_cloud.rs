@@ -3,14 +3,19 @@ use crate::common::font::FontSet;
 use std::io::Cursor;
 use std::io::Error;
 
-use crate::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string, Dimensions};
+#[cfg(feature = "background_image")]
+use crate::image::{average_color_for_rect, canny_algorithm, color_to_rgb_string};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
 use base64::Engine;
+
+#[cfg(feature = "background_image")]
 use image::imageops::grayscale;
+#[cfg(feature = "background_image")]
 use image::{DynamicImage, GenericImageView, Rgba};
+
 use itertools::Itertools;
 use parking_lot::{Mutex, RwLock};
 use quadtree_rs::area::{Area, AreaBuilder};
@@ -27,6 +32,7 @@ use crate::rank::RankedWords;
 use crate::types::spiral::Spiral;
 use svg::node::element::{Group, Path, Rectangle, Style, Text};
 use svg::{Document, Node};
+use crate::Dimensions;
 
 const QUADTREE_DIVISOR: f32 = 4.;
 
@@ -38,6 +44,9 @@ macro_rules! available_parallelism {
         }
     };
 }
+
+#[cfg(not(feature = "background_image"))]
+type DynamicImage = ();
 
 /**
     Creates the WordCloud
@@ -69,6 +78,7 @@ impl<'a> WordCloud<'a> {
         }
     }
 
+    #[cfg(feature = "background_image")]
     fn add_background(&mut self, image: &'a DynamicImage) {
         let resize = image.resize(
             (self.dimensions.width() as f32 / QUADTREE_DIVISOR) as u32,
@@ -318,6 +328,7 @@ impl<'a> WordCloud<'a> {
         self.put_text(second.to_vec());
     }
 
+    #[cfg(feature = "background_image")]
     fn get_color_for_word(&self, word: &Word) -> Rgba<u8> {
         match self.bg_image {
             None => Rgba([0; 4]),
@@ -369,18 +380,23 @@ impl<'a> WordCloud<'a> {
 
         sliced.for_each(|x| {
             for word in x {
-                let color = self.get_color_for_word(word);
 
-                let p = Path::new()
+                let mut p = Path::new()
                     .set("d", word.d())
-                    .set("stoke", "none")
-                    .set("fill", color_to_rgb_string(&color));
+                    .set("stoke", "none");
+                #[cfg(feature = "background_image")]
+                {
+                    let color = self.get_color_for_word(word);
+                    p.assign("fill", color_to_rgb_string(&color));
+                }
+
                 let _s = p.to_string();
                 {
                     doc_mutex.lock().append(p);
                 }
             }
         });
+
         let lock = doc_mutex.lock();
         let mut target = Cursor::new(Vec::new());
         match svg::write(&mut target, &lock.clone()) {
@@ -437,13 +453,19 @@ impl<'a> WordCloud<'a> {
             let mut gr = Group::new().set("font-family", font.name());
 
             for word in group {
-                let color = self.get_color_for_word(word);
+
 
                 let mut t = Text::new()
                     .set("x", word.offset.x)
                     .set("y", word.offset.y)
-                    .set("fill", color_to_rgb_string(&color))
                     .set("font-size", word.scale);
+
+                #[cfg(feature = "background_image")]
+                {
+                    let color = self.get_color_for_word(word);
+                    t.assign("fill", color_to_rgb_string(&color));
+                }
+
                 match word.rotation {
                     Rotation::Zero => (),
                     Rotation::Ninety | Rotation::OneEighty | Rotation::TwoSeventy => {
@@ -667,6 +689,7 @@ impl<'a> WordCloudBuilder<'a> {
             (None, _) => return Err("Missing Dimensions in WordCloudBuilder!".into()),
         };
 
+        #[cfg(feature = "background_image")]
         if let Some(i) = self.image {
             wc.add_background(i);
         }

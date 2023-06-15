@@ -104,22 +104,17 @@ impl<'a> Font<'a> {
             #[cfg(not(feature = "woff2"))]
             unimplemented!("activate the woff2 feature for this font")
         } else if &data[0..4] == b"wOFF" {
-            #[cfg(feature = "rust-woff")]
-            {
-                let mut inp_cur = Cursor::new(&data);
-                let mut out_cur = Cursor::new(Vec::new());
-                woff::convert_woff_to_otf(&mut inp_cur, &mut out_cur)
-                    .expect("font conversion from woff1 unsuccessful");
+            let mut inp_cur = Cursor::new(&data);
+            let mut out_cur = Cursor::new(Vec::new());
+            rs_woff::woff2otf(&mut inp_cur, &mut out_cur)
+                .expect("font conversion from woff1 unsuccessful");
 
-                let pack = data.clone();
+            let pack = data.clone();
 
-                data.clear();
-                data.extend_from_slice(out_cur.get_ref().as_slice());
+            data.clear();
+            data.extend_from_slice(out_cur.get_ref().as_slice());
 
-                (FontType::WOFF, FontRef::from_index(data, 0), Some(pack))
-            }
-            #[cfg(not(feature = "rust-woff"))]
-            unimplemented!("activate the rust-woff feature for this font");
+            (FontType::WOFF, FontRef::from_index(data, 0), Some(pack))
         } else {
             unimplemented!("unrecognized font magic {:?}", &data[0..4]);
         };

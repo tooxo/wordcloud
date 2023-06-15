@@ -1,8 +1,8 @@
 [package]
-name = "wordcloud"
-description = ""
+name = "rs-wordcloud"
+description = "☁ Flexible WordCloud implementation for ⚙Rust"
 homepage = "https://github.com/tooxo/wordcloud"
-documentation = ""
+documentation = "https://docs.rs/rs-wordcloud"
 repository = "https://github.com/tooxo/wordcloud"
 readme = "Readme.md"
 version = "0.1.0"
@@ -20,8 +20,9 @@ exclude = [
 ]
 
 [features]
-default = ["stopwords", "woff2", "rust-woff"]
+default = ["stopwords", "woff2", "background_image"]
 stopwords = ["include_dir"]
+background_image = ["image", "edge-detection"]
 
 [[example]]
 name = "example"
@@ -35,18 +36,18 @@ doctest = false
 [dependencies]
 rayon = "1.6.1"
 svg = "0.13.0"
-image = "0.24.5"
-edge-detection = "0.2.6"
+image = { version = "0.24.5", optional = true }
+edge-detection = { version = "0.2.6", optional = true }
 rand = { version = "0.8.5", features = ["small_rng"] }
 parking_lot = "0.12.1"
-quadtree_rs = { version = "*", git = "https://github.com/tooxo/quadtree.git" }
+quadtree_rs = "0.1.3"
 num-traits = "0.2.15"
 swash = "0.1.6"
 itertools = "0.10.5"
-base64 = "0.21.0"
+base64 = "0.21.2"
 unicode-script = "0.5.5"
 woff2 = { version = "0.3.0", optional = true }
-rust-woff = { version = "*", git = "https://github.com/eratou/rust-woff.git", optional = true }
+rs-woff = "0.1.0"
 include_dir = { version = "0.7.3", features = ["glob"], optional = true }
 
 [profile.profiler]

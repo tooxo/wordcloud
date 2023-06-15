@@ -216,12 +216,14 @@ impl<'a> Word<'a> {
 
         w.recalculate_bounding_box();
         assert!(w.bounding_box.is_normal());
+        assert_ne!(w.bounding_box.width(), 0.);
+        assert_ne!(w.bounding_box.height(), 0.);
 
         Ok(w)
     }
 
     fn recalculate_bounding_box(&mut self) {
-        if !self.glyphs.is_empty() {
+        if self.glyphs.is_empty() {
             return;
         }
 

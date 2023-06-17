@@ -1,4 +1,7 @@
 use std::cell::RefCell;
+use std::ops::Range;
+use svg::Node;
+use svg::node::element::{Rectangle, Text};
 use swash::scale::outline::Outline;
 use swash::scale::ScaleContext;
 use swash::shape::Direction::LeftToRight;
@@ -8,11 +11,12 @@ use swash::zeno::Command;
 use swash::zeno::PathData;
 
 use crate::cloud::letter::Letter;
-use crate::common::font::{Font, FontSet, GuessScript};
+use crate::common::font::{Font, GuessScript};
 use crate::common::svg_command::{Curve, End, Line, Move, QuadCurve, SVGPathCommand};
 use crate::types::point::Point;
 use crate::types::rect::Rect;
 use crate::types::rotation::Rotation;
+use crate::Dimensions;
 
 thread_local! {
     static SCALER_TL: RefCell<ScaleContext> = RefCell::new(ScaleContext::new());
@@ -37,23 +41,17 @@ pub(crate) struct Word<'a> {
 impl<'a> Word<'a> {
     pub(crate) fn build(
         text: &str,
-        font: &'a FontSet,
+        font: &'a Font<'a>,
         font_size: f32,
         start: Point<f32>,
         rotation: Rotation,
     ) -> WordBuildingResult<Word<'a>> {
-        let ws = text.guess_script();
-        let used_font = match font.get_font_for_script(&ws) {
-            None => return Err(format!("No font found, which supports: \"{}\"", text)),
-            Some(f) => f,
-        };
-
         let mut w = SHAPER_TL.with(|shape_ref| {
             SCALER_TL.with(|scale_ref| {
                 let mut shape_context = shape_ref.borrow_mut();
                 let mut shaper = shape_context
-                    .builder(*used_font.reference())
-                    .script(ws.s())
+                    .builder(*font.reference())
+                    .script(text.guess_script().s())
                     .size(font_size)
                     .direction(LeftToRight)
                     .features(&[
@@ -71,7 +69,7 @@ impl<'a> Word<'a> {
 
                 let mut scale_context = scale_ref.borrow_mut();
                 let mut scaler = scale_context
-                    .builder(*used_font.reference())
+                    .builder(*font.reference())
                     .size(font_size)
                     .build();
 
@@ -81,6 +79,7 @@ impl<'a> Word<'a> {
                 let chars = text.chars().collect::<Vec<char>>();
                 let mut char_index = 0;
                 let mut advance = 0.0;
+
                 shaper.shape_with(|c| {
                     letters.append(
                         &mut c
@@ -118,8 +117,8 @@ impl<'a> Word<'a> {
                                     match cmd {
                                         Command::MoveTo(p) => letter.move_to(p.x, p.y),
                                         Command::LineTo(p) => letter.line_to(p.x, p.y),
-                                        Command::CurveTo(x1, x2, x) => {
-                                            letter.curve_to(x1.x, x1.y, x2.x, x2.y, x.x, x.y)
+                                        Command::CurveTo(x2, x1, x) => {
+                                            letter.curve_to(x2.x, x2.y, x1.x, x1.y, x.x, x.y)
                                         }
                                         Command::QuadTo(x1, x) => {
                                             letter.quad_to(x1.x, x1.y, x.x, x.y)
@@ -143,21 +142,10 @@ impl<'a> Word<'a> {
                     bounding_box: Rect::default(),
                     scale: font_size,
                     rotation,
-                    used_font,
+                    used_font: font,
                 }
             })
         });
-
-        let mut max_y = 0.0;
-        let mut min_y = f32::MAX;
-        for x in &w.glyphs {
-            if x.pixel_bounding_box.max.y > max_y {
-                max_y = x.pixel_bounding_box.max.y;
-            }
-            if x.pixel_bounding_box.min.y < min_y {
-                min_y = x.pixel_bounding_box.min.y;
-            }
-        }
 
         for glyph in &mut w.glyphs {
             let height_pt = Point::default();
@@ -257,18 +245,20 @@ impl<'a> Word<'a> {
         };
 
         let rotated = self.rotation.rotate_rectangle(base_rect);
-        self.bounding_box = Rect {
-            min: rotated.min + self.offset,
-            max: rotated.max + self.offset,
-        };
+        self.bounding_box = rotated + self.offset;
+
+        assert!(self.bounding_box.is_normal());
     }
 
     pub(crate) fn move_word(&mut self, new_position: &Point<f32>) {
-        self.offset = Point {
-            x: new_position.x,
-            y: new_position.y,
-        };
-        self.recalculate_bounding_box();
+        let difference = self.offset - *new_position;
+        self.offset = *new_position;
+        self.bounding_box = self.bounding_box - difference;
+        // self.recalculate_bounding_box();
+    }
+
+    pub(crate) fn normalized_bbox(&self) -> Rect<f32> {
+        self.bounding_box - self.offset
     }
 
     fn collidables(&self) -> impl Iterator<Item = Line<f32>> + '_ {
@@ -337,13 +327,41 @@ impl<'a> Word<'a> {
         }
         false
     }
+
+    pub(crate) fn get_font_size_range(&self, dimensions: Dimensions) -> Range<f32> {
+        let max = if self.rotation == Rotation::Ninety || self.rotation == Rotation::TwoSeventy {
+            // compare mainly with height
+            dimensions.width() as f32 * 0.8
+        } else {
+            dimensions.height() as f32 * 0.8
+        };
+        10.0..(max / self.text.len() as f32)
+    }
+
+    pub(crate) fn guess_font_size_range(text: &str, dimensions: &Dimensions) -> Range<f32> {
+        10.0..(dimensions.width() as f32 * 0.8) / text.len() as f32
+    }
+
+    pub(crate) fn get_positioning_range(
+        &self,
+        dimensions: &Dimensions,
+    ) -> (Range<f32>, Range<f32>) {
+        let normalized = self.normalized_bbox();
+        let x = (-normalized.min.x)
+            ..(dimensions.width() as f32 - normalized.width() - normalized.min.x);
+        let y =
+            -normalized.min.y..dimensions.height() as f32 - normalized.height() - normalized.min.y;
+
+        (x, y)
+    }
 }
 
 #[derive(Default)]
 pub(crate) struct WordBuilder<'a> {
     content: Option<String>,
     scale: Option<f32>,
-    font: Option<&'a FontSet<'a>>,
+    font: Option<&'a Font<'a>>,
+    start: Option<Point<f32>>,
 }
 
 impl<'a> WordBuilder<'a> {
@@ -359,8 +377,12 @@ impl<'a> WordBuilder<'a> {
         self.scale = Some(scale);
         self
     }
-    pub(crate) fn font(mut self, font: &'a FontSet<'a>) -> Self {
+    pub(crate) fn font(mut self, font: &'a Font<'a>) -> Self {
         self.font = Some(font);
+        self
+    }
+    pub(crate) fn start(mut self, start: Point<f32>) -> Self {
+        self.start = Some(start);
         self
     }
 
@@ -370,8 +392,53 @@ impl<'a> WordBuilder<'a> {
             self.content.as_ref().unwrap(),
             self.font.unwrap(),
             self.scale.unwrap(),
-            Point::default(),
+            self.start.unwrap(),
             Rotation::Zero,
         )
     }
+}
+
+#[test]
+fn test() {
+    let mut font = Vec::new();
+    font.extend_from_slice(include_bytes!("../../example/assets/OpenSans-Regular.ttf"));
+    let f = Font::from_data(&mut font).unwrap();
+
+    let mut word = Word::build("yeah", &f, 100., (0., 100.).into(), Rotation::Zero).unwrap();
+    word.move_word(&(189., 333.).into());
+
+    let mut document = svg::Document::new()
+        .set("viewBox", (0, 0, 1000, 1000))
+        .set("height", 1000)
+        .set("width", 1000);
+
+    let p = svg::node::element::Path::new()
+        .set("stroke", "black")
+        .set("stroke-width", 1)
+        .set("d", word.d());
+
+    let p2 = Rectangle::new()
+        .set("stroke", "green")
+        .set("stroke-width", 1)
+        .set("fill", "none")
+        .set("x", word.bounding_box.min.x)
+        .set("y", word.bounding_box.min.y)
+        .set("width", word.bounding_box.width())
+        .set("height", word.bounding_box.height());
+
+    let mut p3 = Text::new()
+        .set("font-size", 100)
+        .set("font-family", "Open Sans")
+        .set("font-weight", 400)
+        .set("x", 0)
+        .set("y", 100);
+    p3.append(svg::node::Text::new("yeah"));
+
+    document.append(p);
+    document.append(p2);
+    document.append(p3);
+
+    dbg!(word.bounding_box);
+
+    svg::save("test.svg", &document);
 }

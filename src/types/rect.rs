@@ -52,6 +52,20 @@ where
     }
 }
 
+impl<T> Sub<Point<T>> for Rect<T>
+where
+    T: Sub<Output = T> + Copy,
+{
+    type Output = Rect<T>;
+
+    fn sub(self, rhs: Point<T>) -> Self::Output {
+        Rect {
+            min: self.min - rhs,
+            max: self.max - rhs,
+        }
+    }
+}
+
 impl<T> Default for Rect<T>
 where
     T: Default,
@@ -188,6 +202,18 @@ where
         }
 
         None
+    }
+}
+
+impl<T> Rect<T>
+where
+    T: PartialOrd + Copy + Sized,
+{
+    pub(crate) fn get_intersection(&self, rhs: &Rect<T>) -> Rect<T> {
+        Rect {
+            min: self.min.max(&rhs.min),
+            max: self.max.min(&rhs.max),
+        }
     }
 }
 

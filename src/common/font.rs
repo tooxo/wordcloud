@@ -3,8 +3,9 @@ use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 
 use std::sync::Arc;
-use swash::text::Codepoint;
+use swash::text::{Codepoint, Script};
 
+use swash::scale::ScaleContext;
 use swash::{FontRef, StringId, Tag};
 
 #[cfg(feature = "woff2")]
@@ -50,6 +51,7 @@ pub struct Font<'a> {
     font_type: FontType,
     supported_scripts: HashSet<CScript>,
     packed_font_data: Option<Vec<u8>>,
+    approximate_pixel_width: f32,
 }
 
 impl<'a> Font<'a> {
@@ -73,6 +75,9 @@ impl<'a> Font<'a> {
                 }
             });
         }
+
+        #[allow(clippy::unwrap_used)]
+        scripts_in_specs.insert(CScript::try_from(Script::Common).unwrap());
 
         scripts_in_specs
     }
@@ -132,12 +137,18 @@ impl<'a> Font<'a> {
             Some(locale) => locale.to_string(),
         };
 
+        let mut scale_context = ScaleContext::new();
+        let mut scaler = scale_context.builder(re).size(20_f32).build();
+        let glyph_id = re.charmap().map('a');
+        let outline = scaler.scale_outline(glyph_id).unwrap();
+
         Ok(Font {
             name: font_name,
             re,
             font_type,
             supported_scripts: Font::identify_scripts_in_font(&re),
             packed_font_data: packed_data,
+            approximate_pixel_width: outline.bounds().width() / 20.,
         })
     }
 
@@ -157,6 +168,9 @@ impl<'a> Font<'a> {
         &self.packed_font_data
     }
 
+    pub(crate) fn approximate_pixel_width(&self) -> f32 {
+        self.approximate_pixel_width
+    }
     #[allow(dead_code)]
     pub(crate) fn supported_features(&self) -> impl IntoIterator<Item = (Tag, u16)> + '_ {
         self.reference().features().map(|f| (f.tag(), 1))
@@ -258,7 +272,7 @@ impl<'a> FontSetBuilder<'a> {
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub(crate) struct CScript {
     u: unicode_script::Script,
     s: swash::text::Script,

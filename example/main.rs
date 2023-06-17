@@ -1,8 +1,10 @@
 use std::env::args;
+use rayon::prelude::ParallelString;
 use wordcloud::font::{Font, FontSetBuilder};
-use wordcloud::StopWordsIterator;
+use wordcloud::{StopWordsIterator, StopWordsIteratorPar};
 use wordcloud::{clean, Dimensions, WordCloudBuilder};
 use wordcloud::{RankedWords, StopWords};
+use rayon::iter::ParallelIterator;
 
 fn main() {
     let sw = StopWords::default();
@@ -11,7 +13,7 @@ fn main() {
     let s2 = clean(s.to_lowercase().as_str());
 
     let f = s2
-        .split_whitespace()
+        .par_split_whitespace()
         .filter_stop_words(&sw)
         .filter(|x| x.parse::<f64>().is_err())
         .map(String::from)
@@ -20,7 +22,7 @@ fn main() {
     let ranked = RankedWords::rank(f);
 
     let mut font_bts = Vec::from(include_bytes!("assets/OpenSans-Regular.ttf") as &[u8]);
-    let test_image = include_bytes!("assets/circ.png") as &[u8];
+    let test_image = include_bytes!("assets/1000x1000bb.png") as &[u8];
 
     let font_set = FontSetBuilder::new()
         .push(Font::from_data(&mut font_bts).expect("couldn't parse font data"))
@@ -37,7 +39,7 @@ fn main() {
         .build()
         .unwrap();
 
-    wc.write_content(ranked, 2000);
+        wc.write_content(ranked, 2000);
     wc.export_text_to_file("created.svg")
         .expect("couldn't export");
 

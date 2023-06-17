@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul, Range, Sub};
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct Point<T> {
@@ -146,5 +146,11 @@ impl<T> From<(T, T)> for Point<T> {
             x: value.0,
             y: value.1,
         }
+    }
+}
+
+impl<T> From<quadtree_rs::point::Point<T>> for Point<T> {
+    fn from(value: quadtree_rs::point::Point<T>) -> Self {
+        (value.x, value.y).into()
     }
 }

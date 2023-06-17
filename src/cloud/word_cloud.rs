@@ -28,11 +28,12 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, IntoParallelRef
 
 use std::sync::Arc;
 
+use crate::font::GuessScript;
 use crate::rank::RankedWords;
 use crate::types::spiral::Spiral;
+use crate::Dimensions;
 use svg::node::element::{Group, Path, Rectangle, Style, Text};
 use svg::{Document, Node};
-use crate::Dimensions;
 
 const QUADTREE_DIVISOR: f32 = 4.;
 
@@ -136,6 +137,8 @@ impl<'a> WordCloud<'a> {
     fn add_word(&self, mut word: Word<'a>) {
         let mut spiral = Spiral::new(5.);
         let mut iters = 0;
+
+        let mut break_flag = false;
         loop {
             if self.converted_dimensions().contains(&word.bounding_box) {
                 let mut intersected: bool = false;
@@ -175,17 +178,19 @@ impl<'a> WordCloud<'a> {
                     }
                 }
 
-                let mut len_bf = 0;
-                if !intersected {
+                let len_bf = if !intersected {
                     let read = self.ct.read();
-                    len_bf = read.len();
+
                     for result in read.query(search_region) {
                         if word.word_intersect(result.value_ref()) {
                             intersected = true;
                             break;
                         }
                     }
-                }
+                    read.len()
+                } else {
+                    0
+                };
 
                 if !intersected {
                     let mut write = self.ct.write();
@@ -208,45 +213,76 @@ impl<'a> WordCloud<'a> {
                         break;
                     }
                 }
+            } else {
+                println!(
+                    "missed: {} {:?} {:?}",
+                    iters,
+                    word.normalized_bbox(),
+                    word.bounding_box
+                );
             }
 
-            if iters % 10 == 0 {
+            spiral.advance();
+            let incoming_pos = spiral.position() + word.offset;
+            let ranges = word.get_positioning_range(&self.dimensions);
+
+            if iters % 10 == 0
+                || !ranges.0.contains(&incoming_pos.x)
+                || !ranges.1.contains(&incoming_pos.y)
+            {
                 let new_pos = Point {
-                    x: thread_rng().gen_range(0.0..self.dimensions.width() as f32),
-                    y: thread_rng().gen_range(0.0..self.dimensions.height() as f32),
+                    x: thread_rng().gen_range(ranges.0),
+                    y: thread_rng().gen_range(ranges.1),
                 };
 
                 iters += 1;
 
                 word.move_word(&new_pos);
+
                 spiral.reset();
             } else {
-                spiral.advance();
                 let pos = spiral.position() + word.offset;
 
                 iters += 1;
 
                 word.move_word(&pos);
+
+                // assert!(word.bounding_box.min.full_ge(&Point::default()));
+                // assert!(ranged.0.contains(&word.bounding_box.min.x));
+                // assert!(ranged.1.contains(&word.bounding_box.min.y));
             }
             if iters % 25 == 0 && iters != 0 {
                 if word.scale <= 10. {
-                    break;
-                }
+                    if break_flag {
+                        // println!("Warning: missed word: {}", word.text);
+                        break;
+                    }
+                    break_flag = true;
+                } else {
+                    word = match Word::build(
+                        word.text.as_str(),
+                        word.used_font,
+                        word.scale - 5.,
+                        word.offset,
+                        Rotation::random(),
+                    ) {
+                        Ok(mut w) => {
+                            if !self.converted_dimensions().contains(&w.bounding_box) {
+                                let (xr, yr) = w.get_positioning_range(&self.dimensions);
+                                let point1 = Point {
+                                    x: thread_rng().gen_range(xr.clone()),
+                                    y: thread_rng().gen_range(yr.clone()),
+                                };
+                                w.move_word(&point1);
 
-                word = match Word::build(
-                    word.text.as_str(),
-                    self.font,
-                    word.scale - 2.,
-                    word.offset,
-                    if rand::random() {
-                        Rotation::Zero
-                    } else {
-                        Rotation::TwoSeventy
-                    },
-                ) {
-                    Ok(w) => w,
-                    Err(_) => continue,
-                };
+                                assert!(self.converted_dimensions().contains(&w.bounding_box));
+                            }
+
+                            w
+                        }
+                        Err(_) => continue,
+                    };
+                }
             }
         }
     }
@@ -258,7 +294,7 @@ impl<'a> WordCloud<'a> {
     }
 
     pub(crate) fn put_text(&self, inp: Vec<Word<'a>>) {
-        let xl = (0..available_parallelism!())
+        /*let xl = (0..available_parallelism!())
             .map(|n| {
                 inp.iter()
                     .skip(n)
@@ -266,9 +302,15 @@ impl<'a> WordCloud<'a> {
                     .cloned()
                     .collect::<Vec<Word>>()
             })
-            .collect::<Vec<Vec<Word>>>();
+            .collect::<Vec<Vec<Word>>>();*/
 
-        xl.into_par_iter().for_each(|wl| self.put_text_sync(wl));
+        inp
+            .into_par_iter()
+            .for_each(
+                |w| self.add_word(w)
+            );
+
+        // xl.into_par_iter().for_each(|wl| self.put_text_sync(wl));
     }
 
     /**
@@ -283,15 +325,30 @@ impl<'a> WordCloud<'a> {
             .sum::<f32>()
             / max_word_count as f32;
 
+        let max = content.0.iter().max_by_key(|x| x.count()).unwrap().count() as f32;
+
         let inp: Vec<WordBuilder> = content
             .0
             .iter()
             .take(max_word_count)
-            .map(|w| {
-                WordBuilder::new()
-                    .content(w.content().to_string())
-                    .scale(((w.count() as f32) / max) * 15.)
-                    .font(self.font)
+            .flat_map(|w| {
+                let font_size_range = Word::guess_font_size_range(w.content(), &self.dimensions);
+                let ws = w.content().guess_script();
+                let used_font = match self.font.get_font_for_script(&ws) {
+                    None => {
+                        return None;
+                    }
+                    Some(f) => f,
+                };
+
+                let scale = ((w.count() as f32).log2() / max.log2()) * font_size_range.end;
+                Some(
+                    WordBuilder::new()
+                        .content(w.content().to_string())
+                        .scale(scale)
+                        .font(used_font)
+                        .start(Point::default()),
+                )
             })
             .collect();
 
@@ -311,6 +368,17 @@ impl<'a> WordCloud<'a> {
                     eprintln!("Warning: {}", e);
                     None
                 }
+            })
+            .map(|mut w| {
+                let (x_range, y_range) = w.get_positioning_range(&self.dimensions);
+
+                let point = (
+                    thread_rng().gen_range(x_range),
+                    thread_rng().gen_range(y_range),
+                );
+                w.move_word(&point.into());
+
+                w
             })
             .collect::<Vec<Word>>();
 
@@ -380,10 +448,7 @@ impl<'a> WordCloud<'a> {
 
         sliced.for_each(|x| {
             for word in x {
-
-                let mut p = Path::new()
-                    .set("d", word.d())
-                    .set("stoke", "none");
+                let mut p = Path::new().set("d", word.d()).set("stoke", "none");
                 #[cfg(feature = "background_image")]
                 {
                     let color = self.get_color_for_word(word);
@@ -453,8 +518,6 @@ impl<'a> WordCloud<'a> {
             let mut gr = Group::new().set("font-family", font.name());
 
             for word in group {
-
-
                 let mut t = Text::new()
                     .set("x", word.offset.x)
                     .set("y", word.offset.y)

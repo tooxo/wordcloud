@@ -1,5 +1,6 @@
 use crate::types::point::Point;
 use crate::types::rect::Rect;
+use rand::{thread_rng, Rng};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[allow(dead_code)]
@@ -67,6 +68,16 @@ impl Rotation {
                 x: rot_min.x.max(rot_max.x),
                 y: rot_min.y.max(rot_max.y),
             },
+        }
+    }
+
+    pub(crate) fn random() -> Self {
+        let (a, b): (bool, bool) = (thread_rng().gen(), thread_rng().gen());
+        match (a, b) {
+            (true, true) => Rotation::Zero,
+            (true, false) => Rotation::Ninety,
+            (false, true) => Rotation::OneEighty,
+            (false, false) => Rotation::TwoSeventy,
         }
     }
 }

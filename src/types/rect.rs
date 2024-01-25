@@ -207,18 +207,6 @@ where
 
 impl<T> Rect<T>
 where
-    T: PartialOrd + Copy + Sized,
-{
-    pub(crate) fn get_intersection(&self, rhs: &Rect<T>) -> Rect<T> {
-        Rect {
-            min: self.min.max(&rhs.min),
-            max: self.max.min(&rhs.max),
-        }
-    }
-}
-
-impl<T> Rect<T>
-where
     T: Copy + Sub<Output = T>,
 {
     pub(crate) fn width(&self) -> T {

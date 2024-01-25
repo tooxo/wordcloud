@@ -55,7 +55,7 @@ impl StopWords {
             let entry = self
                 .stop_word_map
                 .entry(script)
-                .or_insert_with(HashSet::new);
+                .or_default();
             entry.insert(word.clone());
         }
     }

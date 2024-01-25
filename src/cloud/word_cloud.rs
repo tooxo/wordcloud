@@ -97,13 +97,13 @@ impl<'a> WordCloud<'a> {
 
                 let search_area = AreaBuilder::default()
                     .anchor((pos_x as u64, pos_y as u64).into())
-                    .dimensions(((4.) as u64, (4.) as u64))
+                    .dimensions((4. as u64, 4. as u64))
                     .build()
                     .expect("Error while calculating dimensions");
 
                 let insert_area = AreaBuilder::default()
                     .anchor(((x as f32) as u64, (y as f32) as u64).into())
-                    .dimensions(((1.) as u64, (1.) as u64))
+                    .dimensions((1. as u64, 1. as u64))
                     .build()
                     .expect("Error while calculating dimensions");
 
@@ -317,14 +317,6 @@ impl<'a> WordCloud<'a> {
         Add new words to the [`WordCloud`]. For the best results, call this function only once.
     */
     pub fn write_content(&self, content: RankedWords, max_word_count: usize) {
-        let max = content
-            .0
-            .iter()
-            .take(max_word_count)
-            .map(|x| (x.count() as f32))
-            .sum::<f32>()
-            / max_word_count as f32;
-
         let max = content.0.iter().max_by_key(|x| x.count()).unwrap().count() as f32;
 
         let inp: Vec<WordBuilder> = content

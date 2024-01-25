@@ -1,7 +1,7 @@
 use std::env::args;
 use rayon::prelude::ParallelString;
 use wordcloud::font::{Font, FontSetBuilder};
-use wordcloud::{StopWordsIterator, StopWordsIteratorPar};
+use wordcloud::StopWordsIteratorPar;
 use wordcloud::{clean, Dimensions, WordCloudBuilder};
 use wordcloud::{RankedWords, StopWords};
 use rayon::iter::ParallelIterator;

@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Range, Sub};
+use std::ops::{Add, Mul, Sub};
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct Point<T> {

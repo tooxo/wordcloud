@@ -1,8 +1,5 @@
 use std::cell::RefCell;
 use std::ops::Range;
-use svg::Node;
-use svg::node::element::{Rectangle, Text};
-use swash::scale::outline::Outline;
 use swash::scale::ScaleContext;
 use swash::shape::Direction::LeftToRight;
 use swash::shape::ShapeContext;
@@ -87,7 +84,7 @@ impl<'a> Word<'a> {
                             .iter()
                             .map(|glyph| {
                                 let outline =
-                                    scaler.scale_outline(glyph.id).unwrap_or(Outline::new());
+                                    scaler.scale_outline(glyph.id).unwrap_or_default();
 
                                 let bounds = outline.bounds();
                                 let bbox = Rect {
@@ -328,7 +325,7 @@ impl<'a> Word<'a> {
         false
     }
 
-    pub(crate) fn get_font_size_range(&self, dimensions: Dimensions) -> Range<f32> {
+    pub(crate) fn _get_font_size_range(&self, dimensions: Dimensions) -> Range<f32> {
         let max = if self.rotation == Rotation::Ninety || self.rotation == Rotation::TwoSeventy {
             // compare mainly with height
             dimensions.width() as f32 * 0.8
@@ -400,6 +397,8 @@ impl<'a> WordBuilder<'a> {
 
 #[test]
 fn test() {
+    use svg::Node;
+    use svg::node::element::Text;
     let mut font = Vec::new();
     font.extend_from_slice(include_bytes!("../../example/assets/OpenSans-Regular.ttf"));
     let f = Font::from_data(&mut font).unwrap();
@@ -417,7 +416,7 @@ fn test() {
         .set("stroke-width", 1)
         .set("d", word.d());
 
-    let p2 = Rectangle::new()
+    let p2 = svg::node::element::Rectangle::new()
         .set("stroke", "green")
         .set("stroke-width", 1)
         .set("fill", "none")
@@ -440,5 +439,5 @@ fn test() {
 
     dbg!(word.bounding_box);
 
-    svg::save("test.svg", &document);
+    svg::save("test.svg", &document).expect("TODO: panic message");
 }

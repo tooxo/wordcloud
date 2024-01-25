@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 
 use std::sync::Arc;
-use swash::text::{Codepoint, Script};
+use swash::text::{Codepoint};
 
 use swash::scale::ScaleContext;
 use swash::{FontRef, StringId, Tag};
@@ -42,7 +42,7 @@ pub type FontLoadingError = String;
 pub type FontLoadingResult<T> = Result<T, FontLoadingError>;
 
 /**
-    Represents a Font stored in memory. By default it supports `OTF` and `TTF` fonts, with
+    Represents a Font stored in memory. By default, it supports `OTF` and `TTF` fonts, with
     the create features `woff` and `woff2` it also supports loading `WOFF` fonts.
 */
 pub struct Font<'a> {
@@ -51,7 +51,7 @@ pub struct Font<'a> {
     font_type: FontType,
     supported_scripts: HashSet<CScript>,
     packed_font_data: Option<Vec<u8>>,
-    approximate_pixel_width: f32,
+    _approximate_pixel_width: f32,
 }
 
 impl<'a> Font<'a> {
@@ -77,7 +77,7 @@ impl<'a> Font<'a> {
         }
 
         #[allow(clippy::unwrap_used)]
-        scripts_in_specs.insert(CScript::try_from(Script::Common).unwrap());
+        scripts_in_specs.insert(CScript::try_from(swash::text::Script::Common).unwrap());
 
         scripts_in_specs
     }
@@ -148,7 +148,7 @@ impl<'a> Font<'a> {
             font_type,
             supported_scripts: Font::identify_scripts_in_font(&re),
             packed_font_data: packed_data,
-            approximate_pixel_width: outline.bounds().width() / 20.,
+            _approximate_pixel_width: outline.bounds().width() / 20.,
         })
     }
 
@@ -168,9 +168,6 @@ impl<'a> Font<'a> {
         &self.packed_font_data
     }
 
-    pub(crate) fn approximate_pixel_width(&self) -> f32 {
-        self.approximate_pixel_width
-    }
     #[allow(dead_code)]
     pub(crate) fn supported_features(&self) -> impl IntoIterator<Item = (Tag, u16)> + '_ {
         self.reference().features().map(|f| (f.tag(), 1))

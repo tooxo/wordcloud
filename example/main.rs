@@ -22,7 +22,7 @@ fn main() {
     let ranked = RankedWords::rank(f);
 
     let mut font_bts = Vec::from(include_bytes!("assets/OpenSans-Regular.ttf") as &[u8]);
-    let test_image = include_bytes!("assets/1000x1000bb.png") as &[u8];
+    let test_image = include_bytes!("assets/circ.png") as &[u8];
 
     let font_set = FontSetBuilder::new()
         .push(Font::from_data(&mut font_bts).expect("couldn't parse font data"))

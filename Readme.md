@@ -1,5 +1,5 @@
 ## WordCloud ☁
-![Crates.io Version](https://img.shields.io/crates/v/rs-wordcloud)
+![Crates.io Version](https://img.shields.io/crates/v/rs-wordcloud?link=https%3A%2F%2Fcrates.io%2Fcrates%2Frs-wordcloud)
 
 
 #### A simplified way to create Wordclouds in Rust.
